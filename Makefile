@@ -31,11 +31,9 @@ deps:
 native:
 	cd native && $(ZIG) build -Doptimize=$(OPTIMIZE)
 
-# build.build() renders the pages and copies in the wasm module without
-# starting the watcher that running build.py directly would.
 .PHONY: web
 web: native
-	$(PYTHON) -c 'import build; build.build()'
+	$(PYTHON) build.py
 
 .PHONY: serve
 serve: all
@@ -44,7 +42,7 @@ serve: all
 
 .PHONY: watch
 watch: all
-	$(PYTHON) build.py
+	$(PYTHON) build.py --watch
 
 .PHONY: clean
 clean:

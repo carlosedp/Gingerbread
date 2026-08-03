@@ -1,11 +1,8 @@
+import argparse
 import pathlib
 import jinja2
 import shutil
-
-try:
-    import livereload
-except ImportError:
-    livereload = None
+import sys
 
 HERE = pathlib.Path(__file__).parent
 WEB = HERE / "web"
@@ -61,6 +58,11 @@ def build():
 
 
 def watch():
+    try:
+        import livereload
+    except ImportError:
+        sys.exit("--watch needs livereload: python3 -m pip install -r requirements.txt")
+
     server = livereload.Server()
     server.watch(WEB, func=build, delay="forever")
     server.watch(BUILD)
@@ -69,9 +71,17 @@ def watch():
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Assemble build/ from web/ and the built wasm module.")
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="after building, serve build/ and rebuild on changes",
+    )
+    args = parser.parse_args()
+
     build()
 
-    if livereload:
+    if args.watch:
         watch()
 
 
