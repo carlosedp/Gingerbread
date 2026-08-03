@@ -322,7 +322,7 @@ class Layer {
 
     async get_preview_bitmap() {
         if (!this.bitmap) {
-            this.bitmap = await yak.createImageBitmap(this.svg, this.design.constructor.preview_width);
+            this.bitmap = await yak.createImageBitmap(this.svg, this.design.preview_width);
             if (this.is_mask) {
                 this.bitmap = await yak.ImageBitmap_inverse_mask(this.bitmap, await this.design.edge_cuts.get_preview_bitmap(), this.color);
             }

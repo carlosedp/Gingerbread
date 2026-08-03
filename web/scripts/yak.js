@@ -1,3 +1,5 @@
+const SVG_NS = "http://www.w3.org/2000/svg";
+
 /* Converts an SVGDocument to a Blob. */
 function Blob_from_SVGDocument(svg_doc) {
     return new Blob([new XMLSerializer().serializeToString(svg_doc)], {
@@ -102,10 +104,52 @@ export function cloneDocumentRoot(doc, type) {
     );
 }
 
-/* Clones and transplants the given element into the destination document. */
+/* Clones and transplants the given element into the destination document.
+
+   The element ends up as a direct child of the destination root, which means
+   it loses any transforms carried by the ancestors it's being lifted out of.
+   To keep its geometry where the artwork put it, those transforms are
+   collapsed into a wrapping <g>. */
 export function transplantElement(elm, dst, deep = true) {
     const imported_elm = dst.importNode(elm, deep);
-    dst.documentElement.appendChild(imported_elm);
+    const ancestor_matrix = SVGElement_ancestor_matrix(elm);
+
+    if (!ancestor_matrix) {
+        dst.documentElement.appendChild(imported_elm);
+        return;
+    }
+
+    const wrapper = dst.createElementNS(SVG_NS, "g");
+    wrapper.setAttribute("transform", SVGMatrix_to_transform(ancestor_matrix));
+    wrapper.appendChild(imported_elm);
+    dst.documentElement.appendChild(wrapper);
+}
+
+/* The combined transform of everything above an element, up to but not
+   including the document root.
+
+   The root is excluded because cloneDocumentRoot() copies its attributes into
+   the destination document, so its transform (if any) is already accounted
+   for there. */
+export function SVGElement_ancestor_matrix(elm) {
+    const root = elm.ownerDocument.documentElement;
+    const ancestors = [];
+
+    for (let node = elm.parentNode; node && node !== root; node = node.parentNode) {
+        ancestors.unshift(node);
+    }
+
+    let matrix = null;
+
+    for (const ancestor of ancestors) {
+        matrix = SVGElement_transform_matrix(ancestor, matrix);
+    }
+
+    return matrix;
+}
+
+export function SVGMatrix_to_transform(m) {
+    return `matrix(${m.a},${m.b},${m.c},${m.d},${m.e},${m.f})`;
 }
 
 export function SVGElement_color(elm, stroke, fill) {

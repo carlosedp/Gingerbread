@@ -100,7 +100,16 @@ export default class WASI {
                 return WASI_ESUCCESS;
             },
 
-            random_get() {},
+            random_get: (buf, buf_len) => {
+                const bytes = new Uint8Array(this.memory.buffer, buf, buf_len);
+
+                // getRandomValues() rejects requests larger than 64KiB.
+                for (let i = 0; i < bytes.length; i += 65536) {
+                    crypto.getRandomValues(bytes.subarray(i, Math.min(i + 65536, bytes.length)));
+                }
+
+                return WASI_ESUCCESS;
+            },
 
             clock_time_get() {},
         };
