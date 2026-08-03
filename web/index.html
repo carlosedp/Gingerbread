@@ -1,6 +1,32 @@
 {% extends "templates/layout.html" %}
 
+{% block navbar_items %}
+              <a class="navbar-item" x-on:click="panel_modal = true">
+                <span class="icon-text">
+                  <span class="icon material-symbols-outlined">dashboard_customize</span>
+                  <span>Panel template</span>
+                </span>
+              </a>
+              <a class="navbar-item" x-show="design" x-cloak x-on:click="close_design()">
+                <span class="icon-text">
+                  <span class="icon material-symbols-outlined">note_add</span>
+                  <span>New design</span>
+                </span>
+              </a>
+{% endblock %}
+
 {% block body %}
+<!-- Drag feedback. The overlay doesn't take pointer events, so the drop still
+     lands on the body listener underneath it. -->
+<template x-if="dragging">
+  <div class="gb-drop-overlay">
+    <div class="gb-drop-overlay-inner">
+      <span class="material-symbols-outlined">upload_file</span>
+      <p x-text="design ? 'Drop to replace the current design' : 'Drop your SVG to get started'"></p>
+    </div>
+  </div>
+</template>
+
 <!-- Problem loading or exporting a design -->
 <template x-if="error">
   <div class="gb-error notification is-danger" role="alert">
@@ -49,7 +75,7 @@
 </template>
 
 <!-- Design loaded, show interface controls -->
-<div class="hero-body is-main is-design-loaded" x-show="design">
+<div class="hero-body is-main is-design-loaded" x-show="design" x-cloak>
 
   <div class="gb-preview">
 
@@ -205,7 +231,8 @@
 </div> <!-- hero-body -->
 
 <!-- Eurorack panel template generator -->
-<div class="modal gb-panel-modal" x-bind:class="{'is-active': panel_modal}">
+<div class="modal gb-panel-modal" x-bind:class="{'is-active': panel_modal}"
+  x-on:keydown.escape.window="panel_modal = false">
   <div class="modal-background" x-on:click="panel_modal = false"></div>
   <div class="modal-card">
     <header class="modal-card-head">

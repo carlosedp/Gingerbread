@@ -52,6 +52,11 @@ one standalone SVG document *per layer* by cloning the root `<svg>` and transpla
 into it. Layers are matched by `id` **or** `inkscape:label` — see `Design.layer_defs`, which also
 carries each layer's KiCad layer number.
 
+Because of that either/or, one element can match twice: Inkscape happily puts the same name on a layer
+group and on the artwork inside it. `outermost()` drops nested matches before transplanting. Without it the
+group and its child are both copied in and every shape is exported twice — harmless on raster layers, but
+it leaves `Edge.Cuts` with duplicate coincident outlines that KiCad won't resolve into cutouts.
+
 From there each layer takes one of three paths, dispatched by `layer.type` in `Design.export()`:
 
 - **raster** (`F.Cu`, `B.Cu`, `F.SilkS`, `B.SilkS`, `F.Mask`, `B.Mask`) — the layer SVG is rendered to
@@ -60,6 +65,11 @@ From there each layer takes one of three paths, dispatched by `layer.type` in `D
 - **vector** (`Edge.Cuts`) — path data is flattened to points in JS (`yak.SVGElement_to_paths`) and
   streamed to wasm as `gr_poly` points.
 - **drill** — `<circle>` elements become `np_thru_hole` pads.
+
+Mask layers render inverted, so an empty `F.Mask`/`B.Mask` covers the whole board — which is accurate (a
+board with no openings really is fully masked) and is what makes the mask colour control do anything on an
+otherwise blank design. Don't "fix" it by skipping empty masks; that leaves the raw `Edge.Cuts` preview
+colour on screen and deadens the control.
 
 ### Eurorack panel templates
 

@@ -12,7 +12,7 @@
 <body>
 
   <section class="hero is-fullheight is-primary" x-data="app" @designloaded.window="designloaded"
-    @designerror.window="designerror">
+    @designerror.window="designerror" @dragging.window="dragged">
     <div class="hero-head">
       <nav class="navbar is-primary">
         <div class="container">
@@ -33,6 +33,7 @@
             <div class="navbar-start">
             </div>
             <div class="navbar-end">
+              {% block navbar_items %}{% endblock %}
               <a class="navbar-item" href="help.html">
                 <span class="is-hidden-touch">
                   <span class="material-symbols-outlined">

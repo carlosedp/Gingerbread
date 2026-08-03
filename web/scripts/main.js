@@ -4,6 +4,19 @@ import { PreviewCanvas } from "./preview-canvas.js";
 import { DropTarget } from "./dragdrop.js";
 import { DEFAULT_WIDTH_OFFSET_MM, PANEL_FORMATS, generate_panel_svg } from "./panel.js";
 
+/* Drops any match that's nested inside another one.
+
+   A layer's name can sit on the layer group *and* on the artwork inside it —
+   Inkscape does this readily, and the selectors match on both id and
+   inkscape:label — so the same element can be matched twice over. Transplanting
+   both copies exports every shape twice, which is invisible on raster layers
+   but leaves Edge.Cuts with duplicate coincident outlines that KiCad can't
+   resolve into cutouts. */
+function outermost(elms) {
+    const matches = Array.from(elms);
+    return matches.filter((elm) => !matches.some((other) => other !== elm && other.contains(elm)));
+}
+
 class Design {
     static mask_colors = {
         green: "rgb(0, 84, 3)",
@@ -81,20 +94,34 @@ class Design {
         },
     ];
 
-    constructor(canvas, svg) {
+    constructor(canvas, svg, name = "design.svg") {
         this.cvs = canvas;
         this.svg = svg;
+        /* Examples are loaded by path, so keep just the basename. */
+        this.name = name.split("/").pop();
         this.svg_template = yak.cloneDocumentRoot(this.svg, "image/svg+xml");
         this._preview_layout = "both";
         this._mask_opacity = 0.9;
         this.determine_size();
         this.make_layers();
 
-        const resize_observer = new ResizeObserver(() => {
+        this.resize_observer = new ResizeObserver(() => {
             this.cvs.resize_to_container();
             this.draw();
         });
-        resize_observer.observe(this.cvs.elm);
+        this.resize_observer.observe(this.cvs.elm);
+    }
+
+    /* Detaches a design that's being replaced or closed, so that it stops
+       redrawing itself over whatever comes next. */
+    dispose() {
+        this.resize_observer.disconnect();
+    }
+
+    /* Exports sit next to the design they came from, rather than all being
+       called the same thing. */
+    get output_filename() {
+        return `${this.name.replace(/\.svg$/i, "")}.kicad_pcb`;
     }
 
     determine_size() {
@@ -112,7 +139,7 @@ class Design {
 
         for (const layer_def of Design.layer_defs) {
             const layer_doc = this.svg_template.cloneNode(true);
-            const layer_elms = this.svg.querySelectorAll(layer_def.selector);
+            const layer_elms = outermost(this.svg.querySelectorAll(layer_def.selector));
 
             for (const layer_elm of layer_elms) {
                 yak.transplantElement(layer_elm, layer_doc);
@@ -282,7 +309,7 @@ class Design {
         if (method === "clipboard") {
             navigator.clipboard.writeText(footprint);
         } else {
-            const file = new File([footprint], "design.kicad_pcb");
+            const file = new File([footprint], this.output_filename);
             yak.initiateDownload(file);
         }
     }
@@ -398,7 +425,8 @@ async function load_design_file(file) {
         cvs = new PreviewCanvas(document.getElementById("preview-canvas"));
     }
 
-    design = new Design(cvs, svg_doc);
+    design?.dispose();
+    design = new Design(cvs, svg_doc, file.name);
 
     window.dispatchEvent(new CustomEvent("designloaded", { detail: design }));
 }
@@ -420,19 +448,31 @@ async function open_design_file(file) {
     }
 }
 
-new DropTarget(document.querySelector("body"), async (files) => {
-    await open_design_file(files[0]);
-});
+new DropTarget(
+    document.querySelector("body"),
+    async (files) => {
+        await open_design_file(files[0]);
+    },
+    (dragging) => {
+        window.dispatchEvent(new CustomEvent("dragging", { detail: dragging }));
+    },
+);
+
+/* The layer list as it looks before anything is loaded. */
+function default_layers() {
+    return Design.layer_defs.map((prop) => {
+        return { name: prop.name, visible: true };
+    });
+}
 
 document.addEventListener("alpine:init", () => {
     Alpine.data("app", () => ({
         mask_colors: Design.mask_colors,
         silk_colors: Design.silk_colors,
-        layers: Design.layer_defs.map((prop) => {
-            return { name: prop.name, visible: true };
-        }),
+        layers: default_layers(),
         design: false,
         error: null,
+        dragging: false,
         current_layer: "FSilkS",
         toggle_layer_visibility(layer) {
             layer.visible = design.toggle_layer_visibility(layer.name);
@@ -447,6 +487,19 @@ document.addEventListener("alpine:init", () => {
         },
         designerror(e) {
             this.error = e.detail;
+        },
+        dragged(e) {
+            this.dragging = e.detail;
+        },
+        /* Returns to the landing screen so another design can be opened
+           without reloading the page. */
+        close_design() {
+            design?.dispose();
+            design = undefined;
+            cvs?.clear();
+            this.design = false;
+            this.error = null;
+            this.layers = default_layers();
         },
         exporting: false,
         async export_design(method) {

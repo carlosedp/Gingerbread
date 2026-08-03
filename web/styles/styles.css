@@ -148,6 +148,12 @@ a.button.is-static {
     text-decoration: none;
 }
 
+/* Alpine only evaluates x-show once it has booted, so anything conditional is
+   briefly visible without this. */
+[x-cloak] {
+    display: none !important;
+}
+
 /* Section: Page styles */
 
 body::-webkit-scrollbar {
@@ -378,6 +384,38 @@ body {
 
 .gb-open-file button .material-symbols-outlined {
     margin-right: 0.4rem;
+}
+
+/* Section: drag and drop feedback */
+
+.gb-drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(94, 63, 158, 0.85);
+    /* The drop has to reach the listener on <body>, so the overlay must not
+       intercept it. */
+    pointer-events: none;
+}
+
+.gb-drop-overlay-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 3rem 4rem;
+    border: 3px dashed var(--color-white);
+    border-radius: 1rem;
+    color: var(--color-white);
+    font-size: var(--font-size-slightly-larger);
+    text-align: center;
+}
+
+.gb-drop-overlay-inner .material-symbols-outlined {
+    font-size: var(--font-size-largest);
 }
 
 /* Section: Eurorack panel template generator */
