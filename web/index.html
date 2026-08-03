@@ -1,12 +1,28 @@
 {% extends "templates/layout.html" %}
 
 {% block body %}
+    <!-- Problem loading or exporting a design -->
+    <template x-if="error">
+      <div class="gb-error notification is-danger" role="alert">
+        <button class="delete" x-on:click="error = null" aria-label="Dismiss"></button>
+        <span x-text="error"></span>
+        <span> Need a hand? See the <a href="help.html">docs</a>.</span>
+      </div>
+    </template>
+
     <!-- Design not loaded, show help and examples -->
     <template x-if="!design">
-      <div class="hero-body is-not-design-loaded">
+      <div class="hero-body is-not-design-loaded" x-bind:class="{'has-error': error}">
         <div class="container">
-          <p class="title">Drag and drop your design's SVG or open one of the examples below</p>
+          <p class="title">Drag and drop your design's SVG, or pick a file to get started</p>
           <p class="subtitle">First time? Checkout the <a href="help.html">docs</a>.</p>
+          <div class="gb-open-file">
+            <input type="file" accept=".svg,image/svg+xml" x-ref="file_input" x-on:change="open_file($event)" hidden>
+            <button class="button is-primary is-medium" x-on:click="$refs.file_input.click()">
+              <span class="material-symbols-outlined">upload_file</span>
+              <span>Choose an SVG file</span>
+            </button>
+          </div>
           <div class="example-designs">
             <template x-for="example in ['example-weasel', 'example-speak', 'example-gear']">
               <div class="card">
@@ -128,11 +144,14 @@
           <label class="label">Layers</label>
           <ul class="layer-list">
             <template x-for="layer in layers">
-              <li>
+              <li x-bind:class="{'is-absent': !layer.present}">
                 <span class="name" x-text="layer.name"></span>
-                <a class="toggle" x-on:click="toggle_layer_visibility(layer);">
+                <span class="not-found" x-show="!layer.present">not in file</span>
+                <button type="button" class="toggle" x-show="layer.present" x-on:click="toggle_layer_visibility(layer);"
+                  x-bind:title="(layer.visible ? 'Hide ' : 'Show ') + layer.name"
+                  x-bind:aria-label="(layer.visible ? 'Hide ' : 'Show ') + layer.name">
                   <span class="material-symbols-outlined" x-text="layer.visible ? 'visibility' : 'visibility_off'"></span>
-                </a>
+                </button>
               </li>
             </template>
           </ul>

@@ -118,6 +118,7 @@ class Design {
             }
 
             const layer = new Layer(this, layer_doc, layer_def);
+            layer.present = layer_elms.length > 0;
 
             this.layers.push(layer);
             this.layers_by_name[layer_def.name] = layer;
@@ -299,6 +300,8 @@ class Layer {
         this.color = options.color || "red";
 
         this.visible = true;
+        /* Whether the design actually contained anything for this layer. */
+        this.present = false;
     }
 
     get color() {
@@ -346,28 +349,78 @@ class Layer {
 let cvs = undefined;
 let design = undefined;
 
+/* An error worth showing to the user verbatim, as opposed to an unexpected
+   exception. */
+class DesignError extends Error {}
+
+/* Browsers don't always report a type for .svg files, so fall back to the
+   extension. */
+function is_svg_file(file) {
+    return file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg");
+}
+
 async function load_design_file(file) {
-    if (cvs === undefined) {
-        cvs = new PreviewCanvas(document.getElementById("preview-canvas"));
+    if (!is_svg_file(file)) {
+        throw new DesignError(
+            `Gingerbread needs an SVG file, but "${file.name}" is ${file.type || "of an unknown type"}.`,
+        );
     }
 
     const svg_doc = new DOMParser().parseFromString(await file.text(), "image/svg+xml");
+
+    // DOMParser reports XML errors by returning a <parsererror> document rather
+    // than by throwing.
+    if (svg_doc.querySelector("parsererror") !== null || svg_doc.documentElement.tagName !== "svg") {
+        throw new DesignError(`"${file.name}" couldn't be parsed as SVG.`);
+    }
+
+    const viewbox = svg_doc.documentElement.viewBox.baseVal;
+
+    if (!viewbox.width || !viewbox.height) {
+        throw new DesignError(
+            `"${file.name}" has no viewBox, so Gingerbread can't tell how big it is. Set a document size in your editor and export it again.`,
+        );
+    }
+
+    // Checked before building the Design so that a design with nothing usable
+    // in it never becomes the current one.
+    const found = Design.layer_defs.filter((layer_def) => svg_doc.querySelector(layer_def.selector) !== null);
+
+    if (!found.length) {
+        const names = Design.layer_defs.map((layer_def) => layer_def.name).join(", ");
+        throw new DesignError(
+            `None of Gingerbread's layers were found in "${file.name}". Name your layers (or the objects themselves) after the KiCad layers: ${names}. Dotted spellings such as F.Cu and Edge.Cuts work too.`,
+        );
+    }
+
+    if (cvs === undefined) {
+        cvs = new PreviewCanvas(document.getElementById("preview-canvas"));
+    }
 
     design = new Design(cvs, svg_doc);
 
     window.dispatchEvent(new CustomEvent("designloaded", { detail: design }));
 }
 
-new DropTarget(document.querySelector("body"), async (files) => {
-    console.log(files);
-    const image_file = files[0];
+/* Loads a design, reporting any problem to the user instead of leaving them
+   with a blank screen. */
+async function open_design_file(file) {
+    window.dispatchEvent(new CustomEvent("designerror", { detail: null }));
 
-    if (image_file.type !== "image/svg+xml") {
-        console.log(`Expected svg, got ${image_file.type}`);
-        return;
+    try {
+        await load_design_file(file);
+    } catch (err) {
+        console.error(err);
+        window.dispatchEvent(
+            new CustomEvent("designerror", {
+                detail: err instanceof DesignError ? err.message : `Couldn't load "${file.name}": ${err.message}`,
+            }),
+        );
     }
+}
 
-    await load_design_file(image_file);
+new DropTarget(document.querySelector("body"), async (files) => {
+    await open_design_file(files[0]);
 });
 
 document.addEventListener("alpine:init", () => {
@@ -378,6 +431,7 @@ document.addEventListener("alpine:init", () => {
             return { name: prop.name, visible: true };
         }),
         design: false,
+        error: null,
         current_layer: "FSilkS",
         toggle_layer_visibility(layer) {
             layer.visible = design.toggle_layer_visibility(layer.name);
@@ -385,18 +439,49 @@ document.addEventListener("alpine:init", () => {
         },
         designloaded(e) {
             this.design = e.detail;
+            this.error = null;
+            this.layers = this.design.layers.map((layer) => {
+                return { name: layer.name, visible: layer.visible, present: layer.present };
+            });
+        },
+        designerror(e) {
+            this.error = e.detail;
         },
         exporting: false,
         async export_design(method) {
+            this.error = null;
             this.exporting = true;
-            await this.design.export(method);
+
+            try {
+                await this.design.export(method);
+            } catch (err) {
+                // Without this the buttons stay disabled forever and the only
+                // way out is a reload.
+                console.error(err);
+                this.error = `Export failed: ${err.message}`;
+                this.exporting = false;
+                return;
+            }
+
             this.exporting = "done";
             window.setTimeout(() => {
                 this.exporting = false;
             }, 3000);
         },
+        async open_file(event) {
+            const file = event.target.files[0];
+
+            // Cleared so that picking the same file twice in a row still fires
+            // a change event.
+            event.target.value = "";
+
+            if (file) {
+                await open_design_file(file);
+            }
+        },
         async load_example_design(name) {
-            await load_design_file(await fetch(name));
+            const response = await fetch(name);
+            await open_design_file(new File([await response.blob()], name, { type: "image/svg+xml" }));
         },
     }));
 });

@@ -343,3 +343,53 @@ body {
 .layer-list li:hover {
     background-color: var(--color-Salt-Water);
 }
+
+/* Layers the loaded design didn't contain anything for. */
+.layer-list li.is-absent {
+    color: #999;
+}
+
+.layer-list li.is-absent:hover {
+    background-color: transparent;
+}
+
+.layer-list li .not-found {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-1);
+}
+
+.layer-list li button.toggle {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.gb-open-file {
+    margin-bottom: 2rem;
+}
+
+.gb-open-file button .material-symbols-outlined {
+    margin-right: 0.4rem;
+}
+
+/* The error banner floats over the page, so make room for it on the landing
+   screen rather than letting it cover the headline. */
+.hero .hero-body.is-not-design-loaded.has-error {
+    padding-top: 10rem;
+}
+
+.gb-error {
+    position: fixed;
+    top: 4.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    width: max-content;
+    max-width: min(48rem, calc(100vw - 2rem));
+    box-shadow: 0 0.5rem 1rem rgba(10, 10, 10, 0.2);
+}
