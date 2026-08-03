@@ -10,7 +10,24 @@
 //   Jarosław Foksa
 // @license
 //   MIT License
-if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathData) {
+// @modified
+//   Upstream only probes SVGPathElement and skips the whole polyfill when it looks native.
+//   Browsers that ship the SVG 2 path data API implement it on <path> alone, which left
+//   <rect>, <circle>, <ellipse>, <line>, <polyline> and <polygon> without getPathData().
+//   Probe every interface instead, and install the polyfill everywhere if any one is missing
+//   so a single implementation handles all shapes.
+if (
+    !SVGPathElement.prototype.setPathData ||
+    [
+        SVGPathElement,
+        SVGRectElement,
+        SVGCircleElement,
+        SVGEllipseElement,
+        SVGLineElement,
+        SVGPolylineElement,
+        SVGPolygonElement,
+    ].some((iface) => !iface.prototype.getPathData)
+) {
     (() => {
         const commandsMap = {
             Z: "Z",

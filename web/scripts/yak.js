@@ -350,6 +350,12 @@ export function SVGPathData_transform(pathdata, matrix) {
 }
 
 export function* SVGGeometryElement_to_paths(elm, matrix = null) {
+    /* getPathData() comes from scripts/path-data-polyfill.js unless the browser has it natively.
+       Skipping the shape would silently drop geometry from the board, so complain loudly. */
+    if (typeof elm.getPathData !== "function") {
+        throw new Error(`<${elm.tagName}> has no getPathData(), is scripts/path-data-polyfill.js loaded?`);
+    }
+
     const pathdata = SVGPathData_transform(elm.getPathData({ normalize: true }), matrix);
     for (const subpath of SVGPathData_continuous_subpaths(pathdata)) {
         yield SVGPathData_to_points(subpath);
