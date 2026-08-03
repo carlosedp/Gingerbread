@@ -1,5 +1,6 @@
 # Python requirements for building the site. Install with `make deps`.
 jinja2>=3.0
+livereload>=2.7
 
 # Optional, for `make watch` only: rebuilds and refreshes the browser on
 # changes. Deliberately left out of the required set because build.py starts a
