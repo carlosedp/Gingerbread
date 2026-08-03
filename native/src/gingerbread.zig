@@ -11,7 +11,7 @@ const wasm = @import("wasm.zig");
 
 const a = wasm.allocator;
 
-fn trace(allocator: std.mem.Allocator, layer_name: []const u8, scale_factor: f64, image_pixels: [*]u8, image_width: usize, image_height: usize, writer: anytype) !void {
+fn trace(allocator: std.mem.Allocator, layer_name: []const u8, scale_factor: f64, image_pixels: [*]u8, image_width: usize, image_height: usize, writer: *std.Io.Writer) !void {
     var bitmap = try potrace.Bitmap.from_image(allocator, .{
         .pixels = image_pixels,
         .w = image_width,
@@ -47,27 +47,28 @@ test "trace" {
     const img = try potrace.load_example_image();
     defer potrace.free_example_image(img);
 
-    var buf = std.ArrayList(u8).init(al);
+    var buf: std.Io.Writer.Allocating = .init(al);
+    defer buf.deinit();
 
-    try trace(al, "F.SilkS", 1, img.pixels, img.w, img.h, buf.writer());
+    try trace(al, "F.SilkS", 1, img.pixels, img.w, img.h, &buf.writer);
 
-    print("Trace result: {s}", .{buf.items});
+    print("Trace result: {s}", .{buf.written()});
 
-    try testing.expect(buf.items.len > 300);
+    try testing.expect(buf.written().len > 300);
 
     print("\n\n", .{});
 }
 
-var conversion_buffer: ?std.ArrayList(u8) = null;
+var conversion_buffer: ?std.Io.Writer.Allocating = null;
 
 export fn conversion_start() void {
     if (conversion_buffer) |*buf| {
-        buf.clearAndFree();
+        buf.deinit();
     }
 
-    conversion_buffer = std.ArrayList(u8).init(a);
+    conversion_buffer = .init(a);
 
-    pcb.start_pcb(conversion_buffer.?.writer()) catch @panic("memory");
+    pcb.start_pcb(&conversion_buffer.?.writer) catch @panic("memory");
 }
 
 export fn conversion_add_raster_layer(layer: u32, scale_factor: f64, image_pixels: [*]u8, image_width: u32, image_height: u32) void {
@@ -81,11 +82,11 @@ export fn conversion_add_raster_layer(layer: u32, scale_factor: f64, image_pixel
         else => "Unknown",
     };
 
-    trace(a, layer_name, scale_factor, image_pixels, image_width, image_height, conversion_buffer.?.writer()) catch @panic("memory");
+    trace(a, layer_name, scale_factor, image_pixels, image_width, image_height, &conversion_buffer.?.writer) catch @panic("memory");
 }
 
 export fn conversion_start_poly() void {
-    pcb.start_xx_poly("gr", conversion_buffer.?.writer()) catch @panic("memory");
+    pcb.start_xx_poly("gr", &conversion_buffer.?.writer) catch @panic("memory");
 }
 
 export fn conversion_add_poly_point(
@@ -93,7 +94,7 @@ export fn conversion_add_poly_point(
     y: f64,
     scale_factor: f64,
 ) void {
-    pcb.add_xx_poly_point(.{ .x = x, .y = y }, scale_factor, conversion_buffer.?.writer()) catch @panic("memory");
+    pcb.add_xx_poly_point(.{ .x = x, .y = y }, scale_factor, &conversion_buffer.?.writer) catch @panic("memory");
 }
 
 export fn conversion_end_poly(layer: u32, width: f32, fill: bool) void {
@@ -104,14 +105,14 @@ export fn conversion_end_poly(layer: u32, width: f32, fill: bool) void {
 
     print("layer number: {d}, layer name: {s}\n", .{ layer, layer_name });
 
-    pcb.end_xx_poly(layer_name, width, fill, conversion_buffer.?.writer()) catch @panic("memory");
+    pcb.end_xx_poly(layer_name, width, fill, &conversion_buffer.?.writer) catch @panic("memory");
 }
 
 export fn conversion_add_drill(x: f64, y: f64, d: f64, scale_factor: f64) void {
-    pcb.add_drill(x, y, d, scale_factor, conversion_buffer.?.writer()) catch @panic("memory");
+    pcb.add_drill(x, y, d, scale_factor, &conversion_buffer.?.writer) catch @panic("memory");
 }
 
 export fn conversion_finish() wasm.StringResult {
-    pcb.end_pcb(&conversion_buffer.?.writer()) catch @panic("memory");
+    pcb.end_pcb(&conversion_buffer.?.writer) catch @panic("memory");
     return wasm.return_string(conversion_buffer.?.toOwnedSlice() catch @panic("memory"));
 }

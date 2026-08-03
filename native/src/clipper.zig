@@ -2,7 +2,7 @@ const builtin = @import("builtin");
 const std = @import("std");
 const print = std.debug.print;
 const testing = std.testing;
-const c = @import("cdefs.zig");
+const c = @import("cdefs.zig").c;
 const geometry = @import("geometry.zig");
 const Point = geometry.Point;
 const Poly = geometry.Poly;
@@ -57,14 +57,11 @@ const PathD = struct {
         };
     }
 
-    pub fn format(self: PathD, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: PathD, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         try writer.print("PathD len={d}: ", .{self.len()});
         var it = self.iterator();
         while (it.next()) |pt| {
-            try writer.print("{?}", .{pt});
+            try writer.print("{f}", .{pt});
             if (it.n < it.len) {
                 try writer.writeAll(", ");
             }
@@ -96,7 +93,7 @@ const PathD = struct {
         while (it.next()) |pt| {
             points.appendAssumeCapacity(pt);
         }
-        return points.toOwnedSlice();
+        return points.toOwnedSlice(allocator);
     }
 };
 
@@ -150,14 +147,11 @@ const PathList = struct {
         };
     }
 
-    pub fn format(self: PathList, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: PathList, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         try writer.print("PathList len={d}:\n", .{self.len()});
         var it = self.iterator();
         while (it.next()) |path| {
-            try writer.print("  {?}\n", .{path});
+            try writer.print("  {f}\n", .{path});
         }
     }
 
@@ -177,13 +171,13 @@ const PathList = struct {
         var it = self.iterator();
         _ = it.next();
         while (it.next()) |path| {
-            try holes.append(try path.to_points(allocator));
+            try holes.append(allocator, try path.to_points(allocator));
         }
 
         return .{
             .allocator = allocator,
             .outline = outline,
-            .holes = try holes.toOwnedSlice(),
+            .holes = try holes.toOwnedSlice(allocator),
         };
     }
 };
@@ -291,7 +285,7 @@ test "PathD" {
     try testing.expect(it2.next() == null);
 
     // Printing and such
-    print("\n{?}", .{pathd});
+    print("\n{f}", .{pathd});
     pathd.svg_path();
 }
 
@@ -309,7 +303,7 @@ test "PathList" {
     try testing.expect(pathsd.len() == 1);
     try testing.expect(pathsd.get(0).len() == 1);
 
-    print("{?}", .{pathsd});
+    print("{f}", .{pathsd});
 
     pathsd.svg_path();
 }
@@ -335,7 +329,7 @@ test "PathList to Poly" {
     try testing.expect(poly.holes.len == 1);
     try testing.expect(poly.holes[0].len == 1);
 
-    print("{?}", .{poly});
+    print("{f}", .{poly});
 }
 
 test "boolean op" {
@@ -366,33 +360,33 @@ test "boolean op" {
 
     // TODO: Actually check the result here.
 
-    print("Result: {?}\n", .{result});
+    print("Result: {f}\n", .{result});
 }
 
 test "simplify poly" {
     const a = std.testing.allocator;
-    var outline = std.ArrayList(Point).init(a);
-    var hole = std.ArrayList(Point).init(a);
-    var holes = std.ArrayList([]Point).init(a);
+    var outline: std.ArrayList(Point) = .empty;
+    var hole: std.ArrayList(Point) = .empty;
+    var holes: std.ArrayList([]Point) = .empty;
 
-    try outline.appendSlice(&[_]Point{
+    try outline.appendSlice(a, &[_]Point{
         .{ .x = 0, .y = 0 },
         .{ .x = 100, .y = 0 },
         .{ .x = 100, .y = 100 },
         .{ .x = 0, .y = 100 },
     });
-    try hole.appendSlice(&[_]Point{
+    try hole.appendSlice(a, &[_]Point{
         .{ .x = 25, .y = 25 },
         .{ .x = 75, .y = 25 },
         .{ .x = 75, .y = 75 },
         .{ .x = 25, .y = 75 },
     });
-    try holes.append(try hole.toOwnedSlice());
+    try holes.append(a, try hole.toOwnedSlice(a));
 
     var poly = Poly{
         .allocator = a,
-        .outline = try outline.toOwnedSlice(),
-        .holes = try holes.toOwnedSlice(),
+        .outline = try outline.toOwnedSlice(a),
+        .holes = try holes.toOwnedSlice(a),
     };
 
     defer poly.deinit();
@@ -400,7 +394,7 @@ test "simplify poly" {
     var simplified = try simplify_poly(a, poly);
     defer simplified.deinit();
 
-    print("Result: {?}\n", .{simplified});
+    print("Result: {f}\n", .{simplified});
 
     try testing.expect(simplified.outline.len == 4);
     try testing.expect(simplified.holes.len == 1);
@@ -410,7 +404,7 @@ test "simplify poly" {
     // Check simplify in place
     try poly.simplify();
 
-    print("Result: {?}\n", .{poly});
+    print("Result: {f}\n", .{poly});
 
     for (poly.outline, 0..) |_, i| {
         try testing.expect(std.meta.eql(poly.outline[i], simplified.outline[i]));

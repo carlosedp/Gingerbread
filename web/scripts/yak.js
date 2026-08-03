@@ -263,23 +263,102 @@ export function* SVGPathData_to_points(pathdata) {
     }
 }
 
-export function* SVGGeometryElement_to_paths(elm) {
-    const pathdata = elm.getPathData({ normalize: true });
+/* Combines an element's own transform with the matrix inherited from its
+   ancestors.
+
+   getCTM() is the obvious way to do this, but it only works on a rendered
+   document and layer documents are never attached to the page, so accumulate
+   the transform attributes by hand instead. */
+export function SVGElement_transform_matrix(elm, parent_matrix = null) {
+    const own = elm.transform?.baseVal?.consolidate()?.matrix ?? null;
+
+    if (!own) {
+        return parent_matrix;
+    }
+    if (!parent_matrix) {
+        return own;
+    }
+
+    return parent_matrix.multiply(own);
+}
+
+/* Applies an affine matrix to every coordinate pair in normalized path data.
+
+   Normalized path data only contains M, L, C, and Z segments, so every value
+   is part of an (x, y) pair — including bezier control points, which transform
+   the same way as on-curve points. */
+export function SVGPathData_transform(pathdata, matrix) {
+    if (!matrix) {
+        return pathdata;
+    }
+
+    return pathdata.map((seg) => {
+        const values = [];
+
+        for (let i = 0; i + 1 < seg.values.length; i += 2) {
+            const x = seg.values[i];
+            const y = seg.values[i + 1];
+            values.push(matrix.a * x + matrix.c * y + matrix.e, matrix.b * x + matrix.d * y + matrix.f);
+        }
+
+        return { type: seg.type, values: values };
+    });
+}
+
+export function* SVGGeometryElement_to_paths(elm, matrix = null) {
+    const pathdata = SVGPathData_transform(elm.getPathData({ normalize: true }), matrix);
     for (const subpath of SVGPathData_continuous_subpaths(pathdata)) {
         yield SVGPathData_to_points(subpath);
     }
 }
 
-export function* SVGElement_to_paths(elm) {
+export function* SVGElement_to_paths(elm, parent_matrix = null) {
+    const matrix = SVGElement_transform_matrix(elm, parent_matrix);
+
     if (elm.tagName === "g" || elm.tagName === "svg") {
         for (const child of elm.children) {
-            yield* SVGElement_to_paths(child);
+            yield* SVGElement_to_paths(child, matrix);
         }
-    } else if (elm instanceof SVGGeometryElement || (elm.getPathData && typeof elm.getPathData === 'function')) {
+    } else if (elm instanceof SVGGeometryElement || (elm.getPathData && typeof elm.getPathData === "function")) {
         // Only process elements that are geometry elements or have getPathData method
-        yield* SVGGeometryElement_to_paths(elm);
+        yield* SVGGeometryElement_to_paths(elm, matrix);
     }
     // Skip non-geometry elements like <defs>, <text>, <title>, etc.
+}
+
+/* Finds every <circle> under an element, with ancestor transforms applied. */
+export function* SVGElement_to_circles(elm, parent_matrix = null) {
+    const matrix = SVGElement_transform_matrix(elm, parent_matrix);
+
+    if (elm.tagName === "g" || elm.tagName === "svg") {
+        for (const child of elm.children) {
+            yield* SVGElement_to_circles(child, matrix);
+        }
+        return;
+    }
+
+    if (elm.tagName !== "circle") {
+        return;
+    }
+
+    const cx = elm.cx.baseVal.value;
+    const cy = elm.cy.baseVal.value;
+    const r = elm.r.baseVal.value;
+
+    if (!matrix) {
+        yield { cx: cx, cy: cy, r: r };
+        return;
+    }
+
+    // Drills are always round, so collapse any non-uniform scale down to the
+    // uniform scale that covers the same area.
+    const scale = Math.sqrt(Math.abs(matrix.a * matrix.d - matrix.b * matrix.c));
+
+    yield {
+        cx: matrix.a * cx + matrix.c * cy + matrix.e,
+        cy: matrix.b * cx + matrix.d * cy + matrix.f,
+        r: r * scale,
+    };
 }
 
 /*

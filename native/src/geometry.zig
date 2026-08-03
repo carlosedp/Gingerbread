@@ -2,18 +2,15 @@ const std = @import("std");
 const print = std.debug.print;
 const testing = std.testing;
 const c_translation = std.zig.c_translation;
-const c = @import("cdefs.zig");
+const c = @import("cdefs.zig").c;
 const clipper = @import("clipper.zig");
 
 pub const Point = struct {
     x: f64,
     y: f64,
 
-    pub fn format(self: Point, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        _ = options;
-
-        try writer.print("({d:3.3}, {d:3.3})", self);
+    pub fn format(self: Point, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("({d:3.3}, {d:3.3})", .{ self.x, self.y });
     }
 };
 
@@ -26,12 +23,12 @@ pub const Poly = struct {
         const outline = try self.allocator.dupe(Point, self.outline);
         var holes = try std.ArrayList([]Point).initCapacity(self.allocator, self.holes.len);
         for (self.holes) |hole| {
-            try holes.append(try self.allocator.dupe(Point, hole));
+            try holes.append(self.allocator, try self.allocator.dupe(Point, hole));
         }
         return Poly{
             .allocator = self.allocator,
             .outline = outline,
-            .holes = try holes.toOwnedSlice(),
+            .holes = try holes.toOwnedSlice(self.allocator),
         };
     }
 
@@ -62,13 +59,13 @@ pub const Poly = struct {
             return try self.copy();
         }
 
-        var edges = std.ArrayList(*Edge).init(allocator);
+        var edges: std.ArrayList(*Edge) = .empty;
 
         defer {
             for (edges.items) |edge| {
                 allocator.destroy(edge);
             }
-            edges.clearAndFree();
+            edges.clearAndFree(allocator);
         }
 
         // Start by gathering the edges of the outline. The edges of the outline
@@ -77,15 +74,15 @@ pub const Poly = struct {
         const outline_edges = try Edge.from_points(allocator, self.outline);
         defer allocator.free(outline_edges);
 
-        try edges.ensureUnusedCapacity(outline_edges.len);
+        try edges.ensureUnusedCapacity(allocator, outline_edges.len);
         for (outline_edges) |edge| {
             edge.connected = true;
-            try edges.append(edge);
+            try edges.append(allocator, edge);
         }
 
         // Next, gather the edges for all of the holes. These are all "unconnected".
-        var border_edges = std.ArrayList(*Edge).init(allocator);
-        defer border_edges.clearAndFree();
+        var border_edges: std.ArrayList(*Edge) = .empty;
+        defer border_edges.clearAndFree(allocator);
 
         var num_unconnected: usize = 0;
 
@@ -94,9 +91,9 @@ pub const Poly = struct {
             defer allocator.free(hole_edges);
 
             var x_min: f64 = std.math.floatMax(f64);
-            try edges.ensureUnusedCapacity(hole_edges.len);
+            try edges.ensureUnusedCapacity(allocator, hole_edges.len);
             for (hole_edges) |edge| {
-                try edges.append(edge);
+                try edges.append(allocator, edge);
                 num_unconnected += 1;
 
                 // Is this a leftmost ("border") edge?
@@ -105,7 +102,7 @@ pub const Poly = struct {
                 // doesn't seem to have any negative effects other than making
                 // the next step possibly slower.
                 if (edge.p1.x <= x_min) {
-                    try border_edges.append(edge);
+                    try border_edges.append(allocator, edge);
                     x_min = edge.p1.x;
                 }
             }
@@ -151,26 +148,22 @@ pub const Poly = struct {
         }
     }
 
-    pub fn format(self: Poly, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        const tabs = options.width orelse 0;
-
-        try tab(writer, tabs);
+    pub fn format(self: Poly, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         try writer.print("Poly outline={d} holes={d}:\n", .{ self.outline.len, self.holes.len });
-        try tab(writer, tabs + 1);
+        try tab(writer, 1);
         try writer.writeAll("Outline: ");
         for (self.outline, 0..) |pt, n| {
-            try writer.print("{?}", .{pt});
+            try writer.print("{f}", .{pt});
             if (n < self.outline.len - 1) {
                 try writer.writeAll(", ");
             }
         }
         try writer.writeAll("\n");
         for (self.holes, 0..) |hole, i| {
-            try tab(writer, tabs + 1);
+            try tab(writer, 1);
             try writer.print("Hole {d}: ", .{i});
             for (hole, 0..) |pt, n| {
-                try writer.print("{?}", .{pt});
+                try writer.print("{f}", .{pt});
                 if (n < self.outline.len - 1) {
                     try writer.writeAll(", ");
                 }
@@ -191,13 +184,10 @@ pub const PolyList = struct {
         self.allocator.free(self.items);
     }
 
-    pub fn format(self: PolyList, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: PolyList, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         try writer.print("PolyList len={d}:\n", .{self.items.len});
         for (self.items) |poly| {
-            try writer.print("{?:1}", .{poly});
+            try writer.print("{f}", .{poly});
         }
     }
 };
@@ -226,13 +216,13 @@ const Edge = struct {
                 edges.items[i - 1].next = edge;
             }
 
-            try edges.append(edge);
+            try edges.append(allocator, edge);
         }
 
         // Connect the last edge back to the first, completing the shape.
         edges.items[edges.items.len - 1].next = edges.items[0];
 
-        return edges.toOwnedSlice();
+        return edges.toOwnedSlice(allocator);
     }
 
     fn to_poly(allocator: std.mem.Allocator, edges: []*Edge) !Poly {
@@ -244,13 +234,13 @@ const Edge = struct {
             if (!e.connected) {
                 print("warning: unconnected edge at index {d}.\n", .{outline.items.len});
             }
-            try outline.append(e.p1);
+            try outline.append(allocator, e.p1);
         }
-        try outline.append(e.p1);
+        try outline.append(allocator, e.p1);
 
         return Poly{
             .allocator = allocator,
-            .outline = try outline.toOwnedSlice(),
+            .outline = try outline.toOwnedSlice(allocator),
             .holes = &[_][]Point{},
         };
     }
@@ -312,9 +302,9 @@ const Edge = struct {
             .p2 = .{ .x = nearest.x_intersect, .y = self.p1.y },
         };
 
-        try edges.append(bridge_before);
-        try edges.append(split_after);
-        try edges.append(bridge_after);
+        try edges.append(allocator, bridge_before);
+        try edges.append(allocator, split_after);
+        try edges.append(allocator, bridge_after);
 
         // Mark all the hole edges as connected
         var last = self;
@@ -378,14 +368,12 @@ const Edge = struct {
         return .{ .edge = nearest.?, .x_intersect = nearest_x_intersect };
     }
 
-    pub fn format(self: Edge, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        _ = options;
-        try writer.print("Edge p1={?} p2={?}, next=0x{x}, connected={?}", .{ self.p1, self.p2, @intFromPtr(self.next), self.connected });
+    pub fn format(self: Edge, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("Edge p1={f} p2={f}, next=0x{x}, connected={}", .{ self.p1, self.p2, @intFromPtr(self.next), self.connected });
     }
 };
 
-fn tab(writer: anytype, times: usize) !void {
+fn tab(writer: *std.Io.Writer, times: usize) std.Io.Writer.Error!void {
     var n: usize = 0;
     while (n < times) : (n += 1) {
         try writer.writeAll("  ");

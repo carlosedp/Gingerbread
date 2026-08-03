@@ -262,12 +262,12 @@ class Design {
                         for (const pt of path) {
                             gingerbread.conversion_add_poly_point(pt[0], pt[1], this.dpmm);
                         }
-                        gingerbread.conversion_end_poly(layer.number, 1, false);
+                        gingerbread.conversion_end_poly(layer.number, 0.05, false);
                     }
                     break;
                 case "drill":
                     for (const circle of layer.get_circles()) {
-                        gingerbread.conversion_add_drill(circle.cx.baseVal.value, circle.cy.baseVal.value, circle.r.baseVal.value * 2, this.dpmm);
+                        gingerbread.conversion_add_drill(circle.cx, circle.cy, circle.r * 2, this.dpmm);
                     }
                     break;
                 default:
@@ -338,8 +338,8 @@ class Layer {
         yield* yak.SVGElement_to_paths(this.svg.documentElement);
     }
 
-    get_circles() {
-        return this.svg.documentElement.querySelectorAll("circle");
+    *get_circles() {
+        yield* yak.SVGElement_to_circles(this.svg.documentElement);
     }
 }
 

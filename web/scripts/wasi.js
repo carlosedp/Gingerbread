@@ -1,4 +1,5 @@
 const WASI_ESUCCESS = 0;
+const WASI_ENOSYS = 52;
 const WASI_STDOUT_FILENO = 1;
 const WASI_STDERR_FILENO = 2;
 
@@ -22,7 +23,7 @@ export default class WASI {
     }
 
     exports() {
-        return {
+        const implemented = {
             proc_exit() {},
 
             environ_get: (_environ, _buf) => {
@@ -103,5 +104,14 @@ export default class WASI {
 
             clock_time_get() {},
         };
+
+        // wasi-libc imports far more of preview1 than this module actually
+        // calls, and the exact set shifts between Zig releases. Instantiation
+        // fails outright if any import is missing, so hand back an ENOSYS stub
+        // for everything we haven't implemented.
+        return new Proxy(implemented, {
+            get: (target, name) => (name in target ? target[name] : () => WASI_ENOSYS),
+            has: () => true,
+        });
     }
 }

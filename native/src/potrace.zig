@@ -2,7 +2,7 @@ const std = @import("std");
 const print = std.debug.print;
 const testing = std.testing;
 const c_translation = std.zig.c_translation;
-const c = @import("cdefs.zig");
+const c = @import("cdefs.zig").c;
 const Image = c.image_t;
 const bezier = @import("bezier.zig");
 const geometry = @import("geometry.zig");
@@ -155,36 +155,36 @@ pub const Trace = struct {
             return .{ .allocator = allocator, .items = &.{} };
         }
         
-        var polys = std.ArrayList(Poly).init(allocator);
+        var polys: std.ArrayList(Poly) = .empty;
         var outline: ?[]Point = null;
-        var holes = std.ArrayList([]Point).init(allocator);
+        var holes: std.ArrayList([]Point) = .empty;
 
         var it = Iterator.init(self.state.plist);
         while (it.next()) |path| {
             const points = try path_to_points(allocator, path, bezier_resolution);
             if (path.sign == "+"[0]) {
                 if (outline) |outline_points| {
-                    try polys.append(.{
+                    try polys.append(allocator, .{
                         .allocator = allocator,
                         .outline = outline_points,
-                        .holes = try holes.toOwnedSlice(),
+                        .holes = try holes.toOwnedSlice(allocator),
                     });
                 }
                 outline = points;
             } else {
-                try holes.append(points);
+                try holes.append(allocator, points);
             }
         }
 
         if (outline) |outline_points| {
-            try polys.append(.{
+            try polys.append(allocator, .{
                 .allocator = allocator,
                 .outline = outline_points,
-                .holes = try holes.toOwnedSlice(),
+                .holes = try holes.toOwnedSlice(allocator),
             });
         }
 
-        return .{ .allocator = allocator, .items = try polys.toOwnedSlice() };
+        return .{ .allocator = allocator, .items = try polys.toOwnedSlice(allocator) };
     }
 
     // // TODO: change to format
@@ -216,13 +216,13 @@ pub const Trace = struct {
 };
 
 fn path_to_points(allocator: std.mem.Allocator, path: *c.potrace_path_t, bezier_resolution: f32) ![]Point {
-    var out = std.ArrayList(Point).init(allocator);
+    var out: std.ArrayList(Point) = .empty;
     var n: usize = 0;
     const curve = path.*.curve;
     var last = @as(usize, @intCast(curve.n)) - 1;
     const start_point = curve.c[last][2];
 
-    try out.append(.{ .x = start_point.x, .y = start_point.y });
+    try out.append(allocator, .{ .x = start_point.x, .y = start_point.y });
 
     while (n < path.*.curve.n) : ({
         last = n;
@@ -230,8 +230,8 @@ fn path_to_points(allocator: std.mem.Allocator, path: *c.potrace_path_t, bezier_
     }) {
         switch (curve.tag[n]) {
             c.POTRACE_CORNER => {
-                try out.append(.{ .x = curve.c[n][1].x, .y = curve.c[n][1].y });
-                try out.append(.{ .x = curve.c[n][2].x, .y = curve.c[n][2].y });
+                try out.append(allocator, .{ .x = curve.c[n][1].x, .y = curve.c[n][1].y });
+                try out.append(allocator, .{ .x = curve.c[n][2].x, .y = curve.c[n][2].y });
             },
             c.POTRACE_CURVETO => {
                 var b = bezier.Approximator.init(
@@ -243,14 +243,14 @@ fn path_to_points(allocator: std.mem.Allocator, path: *c.potrace_path_t, bezier_
                 );
 
                 while (b.next()) |p| {
-                    try out.append(.{ .x = p.x, .y = p.y });
+                    try out.append(allocator, .{ .x = p.x, .y = p.y });
                 }
             },
             else => {},
         }
     }
 
-    return out.toOwnedSlice();
+    return out.toOwnedSlice(allocator);
 }
 
 pub fn load_example_image() !c.image_t {
@@ -285,7 +285,7 @@ test "trace png" {
 
     var polylist = try trace.to_polylist(std.testing.allocator, 1);
     defer polylist.deinit();
-    print("{?}\n", .{polylist});
+    print("{f}\n", .{polylist});
     print("\nSVG Path: ", .{});
     for (polylist.items) |poly| {
         poly.svg_path();

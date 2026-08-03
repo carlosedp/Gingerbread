@@ -30,4 +30,4 @@ pub fn return_string(str: []u8) u32 {
     return @as(u32, @intCast(@intFromPtr(result.ptr)));
 }
 
-pub const StringResult = @typeInfo(@TypeOf(return_string)).Fn.return_type.?;
+pub const StringResult = @typeInfo(@TypeOf(return_string)).@"fn".return_type.?;

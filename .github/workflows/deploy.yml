@@ -15,9 +15,12 @@ concurrency:
     group: "pages"
     cancel-in-progress: true
 
+env:
+    ZIG_VERSION: "0.16.0"
+
 jobs:
     build:
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-latest
         environment:
             name: github-pages
             url: ${{ steps.deployment.outputs.page_url }}
@@ -27,8 +30,9 @@ jobs:
 
             - name: Install Zig
               run: |
-                  wget -q https://ziglang.org/download/0.12.1/zig-linux-x86_64-0.12.1.tar.xz
-                  tar -xf zig-linux-x86_64-0.12.1.tar.xz
+                  wget -q "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+                  tar -xf "zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+                  echo "${PWD}/zig-x86_64-linux-${ZIG_VERSION}" >> "$GITHUB_PATH"
 
             - uses: actions/setup-python@v5
               with:
@@ -41,7 +45,7 @@ jobs:
             - name: Build native
               working-directory: native
               run: |
-                  ../zig-linux-x86_64-0.12.1/zig build -Doptimize=ReleaseFast
+                  zig build -Doptimize=ReleaseFast
 
             - name: Build web
               run: |
