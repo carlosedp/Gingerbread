@@ -1,3 +1,5 @@
+/* First, so that it's listening before anything else has a chance to log. */
+import * as diagnostics from "./diagnostics.js";
 import * as yak from "./yak.js";
 import { LibGingerbread } from "./libgingerbread.js";
 import { PreviewCanvas } from "./preview-canvas.js";
@@ -628,6 +630,36 @@ document.addEventListener("alpine:init", () => {
         },
         designerror(e) {
             this.error = e.detail;
+            this.logs_copied = false;
+        },
+        /* false while idle, then "copied" or "failed" for a moment after the
+           button in the error toast is pressed. */
+        logs_copied: false,
+        /* Hands over everything worth putting in a bug report: what the browser
+           logged, plus the design and settings it was working on. */
+        async copy_logs() {
+            const design_settings = this.design
+                ? `mask ${this.design.mask_color} at ${Math.round(this.design.mask_opacity * 100)}%, ` +
+                  `silk ${this.design.silk_color}, copper ${this.design.copper_color}, ` +
+                  `mirror back layers ${this.design.mirror_back ? "on" : "off"}`
+                : undefined;
+
+            const report = diagnostics.report({
+                Error: this.error,
+                Design: this.design
+                    ? `${this.design.name}, ${this.design.width_mm} × ${this.design.height_mm} mm at ${this.design.dpi} DPI`
+                    : "none loaded",
+                Layers: this.layers
+                    .map((layer) => `${layer.name}${layer.present === false ? " (not in file)" : ""}`)
+                    .join(", "),
+                Settings: design_settings,
+            });
+
+            this.logs_copied = (await yak.copyText(report)) ? "copied" : "failed";
+
+            window.setTimeout(() => {
+                this.logs_copied = false;
+            }, 3000);
         },
         dragged(e) {
             this.dragging = e.detail;

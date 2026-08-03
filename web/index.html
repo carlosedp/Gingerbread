@@ -33,8 +33,16 @@
     <span class="material-symbols-outlined gb-error-icon">error</span>
     <span>
       <span x-text="error"></span>
-      <span> Need a hand? See the <a href="help.html">docs</a>.</span>
+      <span> Need a hand? See the <a href="help.html">docs</a>, or copy the log and open an
+        <a href="https://github.com/carlosedp/Gingerbread/issues" target="_blank" rel="noopener">issue</a>.</span>
     </span>
+    <button class="gb-error-copy" x-on:click="copy_logs()"
+      title="Copy the console log, ready to paste into a bug report">
+      <span class="material-symbols-outlined"
+        x-text="logs_copied === 'copied' ? 'check' : 'content_paste'"></span>
+      <span
+        x-text="logs_copied === 'copied' ? 'Copied' : (logs_copied === 'failed' ? 'Copy failed' : 'Copy log')"></span>
+    </button>
     <button class="delete" x-on:click="error = null" aria-label="Dismiss"></button>
   </div>
 </template>

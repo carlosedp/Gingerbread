@@ -421,6 +421,37 @@ export function* SVGElement_to_circles(elm, parent_matrix = null) {
     };
 }
 
+/* Puts text on the clipboard, returning whether it got there.
+
+   navigator.clipboard is missing outside secure contexts — a page served over
+   plain http from something other than localhost — so there's the old
+   selection-based route to fall back on. */
+export async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (err) {
+        console.warn("Clipboard write failed, falling back to execCommand:", err);
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    /* Off-screen rather than hidden: it has to be selectable to be copied. */
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+        return document.execCommand("copy");
+    } catch (err) {
+        console.error("Couldn't copy to the clipboard:", err);
+        return false;
+    } finally {
+        textarea.remove();
+    }
+}
+
 /*
     Basic helper to initiate a download of a given File using the browser.
     Useful for generating files client side for the user to download.

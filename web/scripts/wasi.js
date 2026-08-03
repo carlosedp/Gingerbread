@@ -5,13 +5,15 @@ const WASI_STDERR_FILENO = 2;
 
 export default class WASI {
     memory;
+    /* The tail of each stream: what's been written since its last newline. */
     buffers;
 
     constructor() {
         this.buffers = {
-            [WASI_STDOUT_FILENO]: [],
-            [WASI_STDERR_FILENO]: [],
+            [WASI_STDOUT_FILENO]: "",
+            [WASI_STDERR_FILENO]: "",
         };
+        this.decoder = new TextDecoder();
     }
 
     setMemory(memory) {
@@ -53,29 +55,18 @@ export default class WASI {
                     return new Uint8Array(this.memory.buffer, buf, bufLen);
                 });
 
-                // XXX: verify that this handles multiple lines correctly
+                /* A write can carry any number of lines, or half of one, so
+                   whatever follows the last newline is held over until the rest
+                   of it turns up. */
                 for (const iov of buffers) {
-                    const newline = 10;
-                    let i = 0;
-                    const newlineIndex = iov.lastIndexOf(newline, i);
-                    if (newlineIndex > -1) {
-                        let line = "";
-                        const decoder = new TextDecoder();
+                    const lines = (this.buffers[fd] + this.decoder.decode(iov, { stream: true })).split("\n");
 
-                        for (const buffer of this.buffers[fd]) {
-                            line += decoder.decode(buffer, { stream: true });
-                        }
+                    this.buffers[fd] = lines.pop();
 
-                        line += decoder.decode(iov.slice(0, newlineIndex));
-
+                    for (const line of lines) {
                         if (fd === WASI_STDOUT_FILENO) console.log(line);
                         else if (fd === WASI_STDERR_FILENO) console.warn(line);
-
-                        this.buffers[fd] = [iov.slice(newlineIndex + 1)];
-                        i = newlineIndex + 1;
                     }
-
-                    this.buffers[fd].push(new Uint8Array(iov.slice(i)));
 
                     written += iov.byteLength;
                 }

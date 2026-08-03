@@ -1312,9 +1312,38 @@ code {
     text-decoration: underline;
 }
 
-.gb-error .delete {
-    position: static;
+/* Hands the console log over for a bug report. Sits with the dismiss button at
+   the end of the toast, so the message itself keeps the room it needs. */
+.gb-error .gb-error-copy {
     margin-left: auto;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: var(--gb-radius-sm);
+    background-color: rgb(255 255 255 / 12%);
+    color: inherit;
+    font-size: var(--gb-text-xs);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--gb-transition);
+}
+
+.gb-error .gb-error-copy:hover {
+    background-color: rgb(255 255 255 / 22%);
+}
+
+.gb-error .gb-error-copy .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+/* Relative, not static: it takes the button out of the corner Bulma pins
+   notification deletes to, while still giving the ✕ pseudo-elements this button
+   to size themselves against rather than the whole toast. */
+.gb-error .delete {
+    position: relative;
     flex: 0 0 auto;
     background-color: rgb(255 255 255 / 12%);
 }
