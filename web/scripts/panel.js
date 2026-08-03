@@ -40,11 +40,13 @@ const MIN_HP_FOR_RIGHT_HOLES = 5;
    true size. */
 const UU_PER_MM = 100;
 
-/* Colors are only ever seen in a vector editor: Gingerbread recolors every
-   layer as it draws. */
-const PANEL_COLOR = "#e6e6e6";
+/* Colors are only ever seen in the template preview and in a vector editor:
+   Gingerbread recolors every layer as it draws. The panel is dark so that the
+   white mounting holes stand out against it, and so that silkscreen artwork
+   drawn on top previews the way it will look on a finished board. */
+const PANEL_COLOR = "#262b33";
 const HOLE_COLOR = "#ffffff";
-const OUTLINE_COLOR = "#666666";
+const OUTLINE_COLOR = "#9aa4b3";
 const GUIDE_COLOR = "#f6921e";
 
 /* The empty layers included so that the template opens in Inkscape with

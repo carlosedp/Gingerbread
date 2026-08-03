@@ -4,6 +4,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The UI is dark-only, so let the browser paint form controls and
+       scrollbars to match. -->
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0e1013">
   <title>Gingerbread</title>
   <link rel="stylesheet" href="./styles/styles.css">
   <script defer type="text/javascript" src="./scripts/bulma.js"></script>
@@ -18,8 +22,8 @@
         <div class="container">
           <div class="navbar-brand">
             <a class="navbar-item" href="index.html">
-              <span class="material-symbols-outlined">
-                cookie
+              <span class="gb-brand-mark">
+                <span class="material-symbols-outlined">cookie</span>
               </span>
               Gingerbread
             </a>
