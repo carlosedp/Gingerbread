@@ -1,194 +1,323 @@
 {% extends "templates/layout.html" %}
 
 {% block body %}
-    <!-- Problem loading or exporting a design -->
-    <template x-if="error">
-      <div class="gb-error notification is-danger" role="alert">
-        <button class="delete" x-on:click="error = null" aria-label="Dismiss"></button>
-        <span x-text="error"></span>
-        <span> Need a hand? See the <a href="help.html">docs</a>.</span>
-      </div>
-    </template>
+<!-- Problem loading or exporting a design -->
+<template x-if="error">
+  <div class="gb-error notification is-danger" role="alert">
+    <button class="delete" x-on:click="error = null" aria-label="Dismiss"></button>
+    <span x-text="error"></span>
+    <span> Need a hand? See the <a href="help.html">docs</a>.</span>
+  </div>
+</template>
 
-    <!-- Design not loaded, show help and examples -->
-    <template x-if="!design">
-      <div class="hero-body is-not-design-loaded" x-bind:class="{'has-error': error}">
-        <div class="container">
-          <p class="title">Drag and drop your design's SVG, or pick a file to get started</p>
-          <p class="subtitle">First time? Checkout the <a href="help.html">docs</a>.</p>
-          <div class="gb-open-file">
-            <input type="file" accept=".svg,image/svg+xml" x-ref="file_input" x-on:change="open_file($event)" hidden>
-            <button class="button is-primary is-medium" x-on:click="$refs.file_input.click()">
-              <span class="material-symbols-outlined">upload_file</span>
-              <span>Choose an SVG file</span>
-            </button>
+<!-- Design not loaded, show help and examples -->
+<template x-if="!design">
+  <div class="hero-body is-not-design-loaded" x-bind:class="{'has-error': error}">
+    <div class="container">
+      <p class="title">Drag and drop your design's SVG, or pick a file to get started</p>
+      <p class="subtitle">First time? Checkout the <a href="help.html">docs</a>.</p>
+      <div class="gb-open-file">
+        <input type="file" accept=".svg,image/svg+xml" x-ref="file_input" x-on:change="open_file($event)" hidden>
+        <button class="button is-primary is-medium" x-on:click="$refs.file_input.click()">
+          <span class="material-symbols-outlined">upload_file</span>
+          <span>Choose an SVG file</span>
+        </button>
+        <button class="button is-alt is-medium" x-on:click="panel_modal = true">
+          <span class="material-symbols-outlined">dashboard_customize</span>
+          <span>Eurorack panel template</span>
+        </button>
+      </div>
+      <div class="example-designs">
+        <template x-for="example in ['example-VFM_4hpBlank', 'example-speak', 'example-gear']">
+          <div class="card">
+            <div class="card-image">
+              <figure class="image is-square">
+                <img x-bind:src="'./images/' + example + '.png'">
+              </figure>
+            </div>
+            <footer class="card-footer">
+              <a class="card-footer-item" x-on:click="load_example_design('images/' + example + '.svg')">Open</a>
+              <a class="card-footer-item" x-bind:href="'./images/' + example + '.svg'" target="_blank">.svg</a>
+              <a class="card-footer-item" x-bind:href="'./images/' + example + '.afdesign'"
+                target="_blank">.afdesign</a>
+            </footer>
           </div>
-          <div class="example-designs">
-            <template x-for="example in ['example-weasel', 'example-speak', 'example-gear']">
-              <div class="card">
-                <div class="card-image">
-                  <figure class="image is-square">
-                    <img x-bind:src="'./images/' + example + '.png'">
-                  </figure>
-                </div>
-                <footer class="card-footer">
-                  <a class="card-footer-item" x-on:click="load_example_design('images/' + example + '.svg')">Open</a>
-                  <a class="card-footer-item" x-bind:href="'./images/' + example + '.svg'" target="_blank">.svg</a>
-                  <a class="card-footer-item" x-bind:href="'./images/' + example + '.afdesign'" target="_blank">.afdesign</a>
-                </footer>
+        </template>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Design loaded, show interface controls -->
+<div class="hero-body is-main is-design-loaded" x-show="design">
+
+  <div class="gb-preview">
+
+    <div class="gb-preview-canvas">
+      <canvas id="preview-canvas"></canvas>
+    </div>
+
+    <div class="gb-preview-controls">
+      <div class="buttons has-addons">
+        <button class="button is-dark" :class="{'is-active': design.preview_layout == 'back-spread'}"
+          x-on:click="design.preview_layout = 'back-spread'" title="Back spread">
+          <span class="material-symbols-outlined">more_horiz</span>
+        </button>
+        <button class="button is-dark" :class="{'is-active': design.preview_layout == 'back'}"
+          x-on:click="design.preview_layout = 'back'" title="Back">
+          <span class="material-symbols-outlined">join_left</span>
+        </button>
+        <button class="button is-dark" :class="{'is-active': design.preview_layout == 'both'}"
+          x-on:click="design.preview_layout = 'both'" title="Both">
+          <span class="material-symbols-outlined">join_full</span>
+        </button>
+        <button class="button is-dark" :class="{'is-active': design.preview_layout == 'front'}"
+          x-on:click="design.preview_layout = 'front'" title="Front">
+          <span class="material-symbols-outlined">join_right</span>
+        </button>
+        <button class="button is-dark" :class="{'is-active': design.preview_layout == 'front-spread'}"
+          x-on:click="design.preview_layout = 'front-spread'" title="Front spread">
+          <span class="material-symbols-outlined">more_horiz</span>
+        </button>
+      </div>
+    </div>
+  </div> <!-- gb-preview -->
+
+  <div class="gb-side-panel">
+    <div class="gb-side-panel-scroll">
+      <label class="label">DPI</label>
+      <div class="field has-addons">
+        <div class="control is-expanded">
+          <input class="input" type="number" x-model.number="design.dpi" min="1" step="0.1">
+        </div>
+        <div class="control">
+          <button class="button" x-on:click="design.dpi = 72"
+            :class="design.dpi == 72 && 'is-active is-primary'">72</button>
+        </div>
+        <div class="control">
+          <button class="button" x-on:click="design.dpi = 96"
+            :class="design.dpi == 96 && 'is-active is-primary'">96</button>
+        </div>
+        <div class="control">
+          <button class="button" x-on:click="design.dpi = 2540"
+            :class="design.dpi == 2540 && 'is-active is-primary'">2540</button>
+        </div>
+      </div>
+
+      <label class="label">Size</label>
+      <div class="field has-addons">
+        <div class="control">
+          <input class="input" type="number" x-model.number="design.width_mm" min="1" step="0.01">
+        </div>
+        <div class="control">
+          <a class="button is-static">
+            x
+          </a>
+        </div>
+        <div class="control">
+          <input class="input" type="number" x-model.number="design.height_mm" min="1" step="0.01">
+        </div>
+        <div class="control">
+          <a class="button is-static">
+            mm
+          </a>
+        </div>
+      </div>
+
+      <label class="label">Mask color</label>
+      <div class="field">
+        <div class="control">
+          <template x-for="(color, color_name) in mask_colors">
+            <button class="color-button" x-on:click="design.mask_color = color"
+              :class="design.mask_color == color && 'is-active'" x-bind:style="{'background-color': color}"
+              x-bind:title="color_name"></button>
+          </template>
+        </div>
+      </div>
+
+      <label class="label">Mask opacity</label>
+      <div class="field">
+        <div class="control">
+          <template x-for="(color, color_name) in {'20%': 0.2, '50%': 0.5, '90%': 0.9}">
+            <button class="color-button" x-on:click="design.mask_opacity = color"
+              :class="design.mask_opacity == color && 'is-active'"
+              x-bind:style="{'background-color': design.mask_color, 'opacity': color}"
+              x-bind:title="color_name"></button>
+          </template>
+        </div>
+      </div>
+
+      <label class="label">Silk color</label>
+      <div class="field">
+        <div class="control">
+          <template x-for="color in silk_colors">
+            <button class="color-button" x-on:click="design.silk_color = color"
+              :class="design.silk_color == color && 'is-active'" x-bind:style="{'background-color': color}"
+              x-bind:title="color"></button>
+          </template>
+        </div>
+      </div>
+
+      <label class="label">Layers</label>
+      <ul class="layer-list">
+        <template x-for="layer in layers">
+          <li x-bind:class="{'is-absent': !layer.present}">
+            <span class="name" x-text="layer.name"></span>
+            <span class="not-found" x-show="!layer.present">not in file</span>
+            <button type="button" class="toggle" x-show="layer.present" x-on:click="toggle_layer_visibility(layer);"
+              x-bind:title="(layer.visible ? 'Hide ' : 'Show ') + layer.name"
+              x-bind:aria-label="(layer.visible ? 'Hide ' : 'Show ') + layer.name">
+              <span class="material-symbols-outlined" x-text="layer.visible ? 'visibility' : 'visibility_off'"></span>
+            </button>
+          </li>
+        </template>
+      </ul>
+    </div>
+
+    <div class="gb-side-panel-actions">
+      <template x-if="!exporting">
+        <div class="buttons has-addons is-fullwidth">
+          <button class="button is-primary" x-on:click="export_design('download');"
+            x-bind:disabled="exporting !== false">
+            <span class="material-symbols-outlined">
+              download
+            </span>
+          </button>
+          <button class="button is-alt" x-on:click="export_design('clipboard');" x-bind:disabled="exporting !== false">
+            <span class="material-symbols-outlined">
+              content_paste
+            </span>
+          </button>
+        </div>
+      </template>
+      <template x-if="exporting === true">
+        <button class="button is-fullwidth is-success is-loading" disabled>
+        </button>
+      </template>
+      <template x-if="exporting === 'done'">
+        <button class="button is-fullwidth is-success" disabled>
+          <span>Done!</span>
+        </button>
+      </template>
+    </div>
+  </div> <!-- gb-side-panel -->
+
+</div> <!-- hero-body -->
+
+<!-- Eurorack panel template generator -->
+<div class="modal gb-panel-modal" x-bind:class="{'is-active': panel_modal}">
+  <div class="modal-background" x-on:click="panel_modal = false"></div>
+  <div class="modal-card">
+    <header class="modal-card-head">
+      <p class="modal-card-title">Eurorack panel template</p>
+      <button class="delete" aria-label="Close" x-on:click="panel_modal = false"></button>
+    </header>
+    <section class="modal-card-body">
+      <div class="gb-panel-generator">
+
+        <div class="gb-panel-preview">
+          <img x-bind:src="panel_preview_src" alt="Preview of the generated panel">
+          <p class="gb-panel-summary">
+            <span x-text="`${panel_template.width_mm} × ${panel_template.height_mm} mm`"></span>
+            <span x-text="`${panel_template.hole_count} mounting holes`"></span>
+          </p>
+        </div>
+
+        <div class="gb-panel-options">
+          <label class="label">Width</label>
+          <div class="field has-addons">
+            <div class="control is-expanded">
+              <input class="input" type="number" x-model.number="panel.hp" min="1" max="200" step="1">
+            </div>
+            <div class="control">
+              <a class="button is-static">HP</a>
+            </div>
+            <template x-for="hp in [4, 6, 8, 12]">
+              <div class="control">
+                <button class="button" x-on:click="panel.hp = hp"
+                  x-bind:class="panel.hp == hp && 'is-active is-primary'" x-text="hp"></button>
               </div>
             </template>
           </div>
-        </div>
-      </div>
-    </template>
 
-    <!-- Design loaded, show interface controls -->
-    <div class="hero-body is-main is-design-loaded" x-show="design">
-
-      <div class="gb-preview">
-
-        <div class="gb-preview-canvas">
-          <canvas id="preview-canvas"></canvas>
-        </div>
-
-        <div class="gb-preview-controls">
-          <div class="buttons has-addons">
-            <button class="button is-dark" :class="{'is-active': design.preview_layout == 'back-spread'}" x-on:click="design.preview_layout = 'back-spread'" title="Back spread">
-              <span class="material-symbols-outlined">more_horiz</span>
-            </button>
-            <button class="button is-dark" :class="{'is-active': design.preview_layout == 'back'}" x-on:click="design.preview_layout = 'back'" title="Back">
-              <span class="material-symbols-outlined">join_left</span>
-            </button>
-            <button class="button is-dark" :class="{'is-active': design.preview_layout == 'both'}" x-on:click="design.preview_layout = 'both'" title="Both">
-              <span class="material-symbols-outlined">join_full</span>
-            </button>
-            <button class="button is-dark" :class="{'is-active': design.preview_layout == 'front'}" x-on:click="design.preview_layout = 'front'" title="Front">
-              <span class="material-symbols-outlined">join_right</span>
-            </button>
-            <button class="button is-dark" :class="{'is-active': design.preview_layout == 'front-spread'}" x-on:click="design.preview_layout = 'front-spread'" title="Front spread">
-              <span class="material-symbols-outlined">more_horiz</span>
-            </button>
-          </div>
-        </div>
-      </div> <!-- gb-preview -->
-
-      <div class="gb-side-panel">
-        <div class="gb-side-panel-scroll">
-          <label class="label">DPI</label>
+          <label class="label">Height</label>
           <div class="field has-addons">
             <div class="control is-expanded">
-              <input class="input" type="number" x-model.number="design.dpi" min="1" step="0.1">
+              <input class="input" type="number" x-model.number="panel.height_mm" min="10" max="500" step="0.01">
             </div>
             <div class="control">
-              <button class="button" x-on:click="design.dpi = 72" :class="design.dpi == 72 && 'is-active is-primary'">72</button>
-            </div>
-            <div class="control">
-              <button class="button" x-on:click="design.dpi = 96" :class="design.dpi == 96 && 'is-active is-primary'">96</button>
-            </div>
-            <div class="control">
-              <button class="button" x-on:click="design.dpi = 2540" :class="design.dpi == 2540 && 'is-active is-primary'">2540</button>
+              <a class="button is-static">mm</a>
             </div>
           </div>
+          <div class="field is-grouped is-grouped-multiline">
+            <template x-for="(height, format) in panel_formats">
+              <div class="control">
+                <button class="button is-small" x-on:click="panel.height_mm = height"
+                  x-bind:class="panel.height_mm == height && 'is-active is-primary'" x-text="format"></button>
+              </div>
+            </template>
+          </div>
 
-          <label class="label">Size</label>
+          <label class="label">Mounting holes</label>
           <div class="field has-addons">
             <div class="control">
-              <input class="input" type="number" x-model.number="design.width_mm" min="1" step="0.01">
+              <button class="button" x-on:click="panel.slotted = false"
+                x-bind:class="!panel.slotted && 'is-active is-primary'">Round</button>
             </div>
             <div class="control">
-              <a class="button is-static">
-                x
-              </a>
-            </div>
-            <div class="control">
-              <input class="input" type="number" x-model.number="design.height_mm" min="1" step="0.01">
-            </div>
-            <div class="control">
-              <a class="button is-static">
-                mm
-              </a>
+              <button class="button" x-on:click="panel.slotted = true"
+                x-bind:class="panel.slotted && 'is-active is-primary'">Slotted</button>
             </div>
           </div>
+          <p class="help">
+            Round holes go on the <code>Drill</code> layer. Slots have no drill equivalent, so they're cut out of
+            <code>Edge.Cuts</code> instead.
+          </p>
 
-          <label class="label">Mask color</label>
+          <label class="label">Fit</label>
+          <div class="field has-addons">
+            <div class="control is-expanded">
+              <input class="input" type="number" x-model.number="panel.offset_mm" min="0" max="5.08" step="0.01"
+                x-bind:disabled="panel.symmetric">
+            </div>
+            <div class="control">
+              <a class="button is-static">mm off the HP width</a>
+            </div>
+          </div>
           <div class="field">
-            <div class="control">
-              <template x-for="(color, color_name) in mask_colors">
-                <button class="color-button" x-on:click="design.mask_color = color" :class="design.mask_color == color && 'is-active'" x-bind:style="{'background-color': color}"
-                  x-bind:title="color_name"></button>
-              </template>
-            </div>
+            <label class="checkbox">
+              <input type="checkbox" x-model="panel.symmetric">
+              Size from the mounting holes, for equal margins
+            </label>
           </div>
-
-          <label class="label">Mask opacity</label>
           <div class="field">
-            <div class="control">
-              <template x-for="(color, color_name) in {'20%': 0.2, '50%': 0.5, '90%': 0.9}">
-                <button class="color-button" x-on:click="design.mask_opacity = color" :class="design.mask_opacity == color && 'is-active'"
-                  x-bind:style="{'background-color': design.mask_color, 'opacity': color}" x-bind:title="color_name"></button>
-              </template>
-            </div>
+            <label class="checkbox">
+              <input type="checkbox" x-model="panel.center_marks">
+              Mark hole centers (a guide layer, not exported)
+            </label>
           </div>
 
-          <label class="label">Silk color</label>
-          <div class="field">
-            <div class="control">
-              <template x-for="color in silk_colors">
-                <button class="color-button" x-on:click="design.silk_color = color" :class="design.silk_color == color && 'is-active'" x-bind:style="{'background-color': color}"
-                  x-bind:title="color"></button>
-              </template>
-            </div>
-          </div>
-
-          <label class="label">Layers</label>
-          <ul class="layer-list">
-            <template x-for="layer in layers">
-              <li x-bind:class="{'is-absent': !layer.present}">
-                <span class="name" x-text="layer.name"></span>
-                <span class="not-found" x-show="!layer.present">not in file</span>
-                <button type="button" class="toggle" x-show="layer.present" x-on:click="toggle_layer_visibility(layer);"
-                  x-bind:title="(layer.visible ? 'Hide ' : 'Show ') + layer.name"
-                  x-bind:aria-label="(layer.visible ? 'Hide ' : 'Show ') + layer.name">
-                  <span class="material-symbols-outlined" x-text="layer.visible ? 'visibility' : 'visibility_off'"></span>
-                </button>
-              </li>
-            </template>
-          </ul>
+          <p class="help">
+            The template carries the panel outline on <code>Edge.Cuts</code> plus empty layers for the copper, mask,
+            and silkscreen. Draw into those in Inkscape, then bring the file back here.
+          </p>
         </div>
 
-        <div class="gb-side-panel-actions">
-          <template x-if="!exporting">
-            <div class="buttons has-addons is-fullwidth">
-              <button class="button is-primary" x-on:click="export_design('download');" x-bind:disabled="exporting !== false">
-                <span class="material-symbols-outlined">
-                  download
-                </span>
-              </button>
-              <button class="button is-alt" x-on:click="export_design('clipboard');" x-bind:disabled="exporting !== false">
-                <span class="material-symbols-outlined">
-                  content_paste
-                </span>
-              </button>
-            </div>
-          </template>
-          <template x-if="exporting === true">
-            <button class="button is-fullwidth is-success is-loading" disabled>
-            </button>
-          </template>
-          <template x-if="exporting === 'done'">
-            <button class="button is-fullwidth is-success" disabled>
-              <span>Done!</span>
-            </button>
-          </template>
-        </div>
-      </div> <!-- gb-side-panel -->
-
-    </div> <!-- hero-body -->
+      </div>
+    </section>
+    <footer class="modal-card-foot">
+      <button class="button is-primary" x-on:click="download_panel()">
+        <span class="material-symbols-outlined">download</span>
+        <span x-text="`Download ${panel_template.filename}`"></span>
+      </button>
+      <button class="button is-alt" x-on:click="open_panel()">Open in Gingerbread</button>
+    </footer>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
-  <script src="scripts/path-data-polyfill.js"></script>
-  <script type="module" src="scripts/main.js"></script>
-  <script defer src="scripts/alpine-3.10.4.js"></script>
+<script src="scripts/path-data-polyfill.js"></script>
+<script type="module" src="scripts/main.js"></script>
+<script defer src="scripts/alpine-3.10.4.js"></script>
 {% endblock %}

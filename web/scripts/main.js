@@ -2,6 +2,7 @@ import * as yak from "./yak.js";
 import { LibGingerbread } from "./libgingerbread.js";
 import { PreviewCanvas } from "./preview-canvas.js";
 import { DropTarget } from "./dragdrop.js";
+import { DEFAULT_WIDTH_OFFSET_MM, PANEL_FORMATS, generate_panel_svg } from "./panel.js";
 
 class Design {
     static mask_colors = {
@@ -482,6 +483,37 @@ document.addEventListener("alpine:init", () => {
         async load_example_design(name) {
             const response = await fetch(name);
             await open_design_file(new File([await response.blob()], name, { type: "image/svg+xml" }));
+        },
+
+        /* Eurorack panel template generator */
+        panel_modal: false,
+        panel_formats: PANEL_FORMATS,
+        panel: {
+            hp: 6,
+            height_mm: PANEL_FORMATS["3U"],
+            offset_mm: DEFAULT_WIDTH_OFFSET_MM,
+            symmetric: false,
+            slotted: false,
+            center_marks: false,
+        },
+        /* Regenerated on every change to the options above, which is what keeps
+           the modal's preview and its download in sync. */
+        get panel_template() {
+            return generate_panel_svg(this.panel);
+        },
+        get panel_preview_src() {
+            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(this.panel_template.svg)}`;
+        },
+        panel_file() {
+            const template = this.panel_template;
+            return new File([template.svg], template.filename, { type: "image/svg+xml" });
+        },
+        download_panel() {
+            yak.initiateDownload(this.panel_file());
+        },
+        async open_panel() {
+            this.panel_modal = false;
+            await open_design_file(this.panel_file());
         },
     }));
 });

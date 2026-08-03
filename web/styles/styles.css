@@ -370,11 +370,92 @@ body {
 }
 
 .gb-open-file {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
     margin-bottom: 2rem;
 }
 
 .gb-open-file button .material-symbols-outlined {
     margin-right: 0.4rem;
+}
+
+/* Section: Eurorack panel template generator */
+
+.gb-panel-modal .modal-card {
+    max-width: min(56rem, calc(100vw - 2rem));
+    width: 100%;
+}
+
+/* The modal lives inside the hero, which paints all of its text white. */
+.gb-panel-modal .modal-card-body {
+    color: var(--text-color);
+}
+
+.gb-panel-modal .help,
+.gb-panel-modal .checkbox {
+    color: var(--color-not-quite-black);
+}
+
+.gb-panel-modal .modal-card-foot .button .material-symbols-outlined {
+    margin-right: 0.4rem;
+}
+
+.gb-panel-generator {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.5rem;
+}
+
+.gb-panel-options {
+    flex: 1;
+    min-width: 0;
+}
+
+.gb-panel-options .help {
+    margin-bottom: 1.25rem;
+}
+
+.gb-panel-preview {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    /* Panels are far taller than they are wide, so let the preview take the
+       height it has and scale to fit. */
+    max-width: 40%;
+}
+
+.gb-panel-preview img {
+    max-height: 55vh;
+    max-width: 100%;
+    height: auto;
+    width: auto;
+}
+
+.gb-panel-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: var(--font-size-smaller);
+    text-align: center;
+}
+
+@media screen and (max-width: 768px) {
+    .gb-panel-generator {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .gb-panel-preview {
+        max-width: 100%;
+    }
+
+    .gb-panel-preview img {
+        max-height: 30vh;
+    }
 }
 
 /* The error banner floats over the page, so make room for it on the landing

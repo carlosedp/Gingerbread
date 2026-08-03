@@ -61,6 +61,15 @@ From there each layer takes one of three paths, dispatched by `layer.type` in `D
   streamed to wasm as `gr_poly` points.
 - **drill** — `<circle>` elements become `np_thru_hole` pads.
 
+### Eurorack panel templates
+
+`web/scripts/panel.js` generates Eurorack front panel SVGs from Doepfer A-100 dimensions, driven by the modal
+in `index.html`. It's a pure string builder with no browser dependencies (so it can be exercised under node),
+and it emits at 100 user units per mm to match Gingerbread's default 2540 DPI. Output is a normal Gingerbread
+design — outline on `Edge.Cuts`, mounting holes on `Drill`, and empty groups for the other layers — so it goes
+straight back through the pipeline above. Slotted mounting holes are the exception: KiCad has no oval drill, so
+they become cutouts in `Edge.Cuts` instead.
+
 ### Zig ↔ JS boundary
 
 The wasm module is a **WASI reactor** with a stateful, streaming API (`native/src/gingerbread.zig`):
