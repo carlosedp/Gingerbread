@@ -10,6 +10,7 @@ all: web
 help:
 	@echo "Targets:"
 	@echo "  all     Build the wasm module and the web pages into build/ (default)"
+	@echo "  deps    Install the Python requirements"
 	@echo "  native  Build the wasm module only"
 	@echo "  web     Assemble build/ from web/ and the built wasm module"
 	@echo "  serve   Build everything, then serve build/ over HTTP"
@@ -21,6 +22,10 @@ help:
 	@echo "  PORT      Port for 'make serve' (now: $(PORT))"
 	@echo "  ZIG       Zig executable (now: $(ZIG))"
 	@echo "  PYTHON    Python executable (now: $(PYTHON))"
+
+.PHONY: deps
+deps:
+	$(PYTHON) -m pip install -r requirements.txt
 
 .PHONY: native
 native:

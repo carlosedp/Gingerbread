@@ -40,7 +40,7 @@ jobs:
 
             - name: Install Python dependencies
               run: |
-                  python3 -m pip install jinja2
+                  python3 -m pip install -r requirements.txt
 
             - name: Build native
               working-directory: native
