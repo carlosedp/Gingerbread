@@ -56,6 +56,11 @@
         exporting the design from your vector editor and when converting the outline and drills. You can use other DPIs
         by changing the DPI setting in Gingerbread once your design is loaded.
       </p>
+      <p>Gingerbread remembers the DPI you last used, along with the mask color, mask opacity, and silk color, and
+        applies them to the next design you open — including after you close the browser. Since the DPI is what tells
+        Gingerbread how big the artwork is, set it back to <code>2540</code> (or whatever the file was drawn at) when
+        you open a design from somewhere else.
+      </p>
       <p>On very slim designs, you might be experiencing issues where the drill holes on either the <code>Drills</code>
         or <code>Edge.Cuts</code> layers become off-centered from their
         intended placement. In that case it'll help to extend the canvas size inside Affinity to be square. Make sure to
@@ -89,6 +94,13 @@
       <p>Gingerbread converts these layers by rasterizing all the items on each layer to black and white, re-tracing the
         raster image to polygons, and placing the resulting
         polygons into KiCAD. While this might seem odd, it works extremely well for a variety of SVGs.</p>
+      <p>The <strong>Mirror back layers</strong> option, on by default, flips <code>B.SilkS</code>, <code>B.Cu</code>,
+        and <code>B.Mask</code> left to right on export, about the middle of the board outline. Draw the back of the
+        board the way you'd see it holding the board with the back facing you, and it comes out the right way round —
+        back text reads correctly on the finished board rather than in KiCAD's top-down view. Turn it off if you've
+        already mirrored the back artwork yourself. The preview always shows both sides as you drew them, so it doesn't
+        change when you toggle this.
+      </p>
 
       <h2>Drills</h2>
       <p>Items on the layer named <code>Drills</code> in the SVG are also handled in a specific way. Gingerbread walks

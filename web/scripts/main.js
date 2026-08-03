@@ -3,6 +3,7 @@ import { LibGingerbread } from "./libgingerbread.js";
 import { PreviewCanvas } from "./preview-canvas.js";
 import { DropTarget } from "./dragdrop.js";
 import { DEFAULT_WIDTH_OFFSET_MM, PANEL_FORMATS, generate_panel_svg } from "./panel.js";
+import { preferences } from "./prefs.js";
 
 /* Drops any match that's nested inside another one.
 
@@ -16,6 +17,11 @@ function outermost(elms) {
     const matches = Array.from(elms);
     return matches.filter((elm) => !matches.some((other) => other !== elm && other.contains(elm)));
 }
+
+/* What a design starts out as, before anything the user saved last session. */
+const DEFAULT_DPI = 2540;
+const DEFAULT_MASK_OPACITY = 0.9;
+const DEFAULT_MIRROR_BACK = true;
 
 class Design {
     static mask_colors = {
@@ -32,6 +38,16 @@ class Design {
     };
 
     static silk_colors = ["white", "black", "yellow", "blue", "grey"];
+
+    /* Board finishes. These only change how the preview looks: the exporter
+       traces each layer's alpha, so the color it's drawn in never reaches the
+       .kicad_pcb. */
+    static copper_colors = {
+        gold: "gold",
+        tin: "rgb(160, 160, 160)",
+        silver: "rgb(213, 213, 213)",
+        copper: "rgb(184, 115, 50)",
+    };
 
     static layer_defs = [
         {
@@ -67,6 +83,7 @@ class Design {
             type: "raster",
             selector: "#BCu, #B\\.Cu, [*|label=\"BCu\"], [*|label=\"B\\.Cu\"]",
             color: "gold",
+            is_back: true,
             number: 2,
         },
         {
@@ -75,6 +92,7 @@ class Design {
             selector: "#BMask, #B\\.Mask, [*|label=\"BMask\"], [*|label=\"B\\.Mask\"]",
             color: "black",
             is_mask: true,
+            is_back: true,
             number: 6,
         },
         {
@@ -82,6 +100,7 @@ class Design {
             type: "raster",
             selector: "#BSilkS, #B\\.SilkS, [*|label=\"BSilkS\"], [*|label=\"B\\.SilkS\"]",
             color: "white",
+            is_back: true,
             number: 4,
         },
         {
@@ -101,9 +120,15 @@ class Design {
         this.name = name.split("/").pop();
         this.svg_template = yak.cloneDocumentRoot(this.svg, "image/svg+xml");
         this._preview_layout = "both";
-        this._mask_opacity = 0.9;
+        this._mask_opacity = DEFAULT_MASK_OPACITY;
+        this._mirror_back = DEFAULT_MIRROR_BACK;
+        /* The draw in flight, if any, and whether another was asked for while
+           it ran. See draw(). */
+        this.drawing = null;
+        this.draw_requested = false;
         this.determine_size();
         this.make_layers();
+        this.restore_preferences();
 
         this.resize_observer = new ResizeObserver(() => {
             this.cvs.resize_to_container();
@@ -116,6 +141,7 @@ class Design {
        redrawing itself over whatever comes next. */
     dispose() {
         this.resize_observer.disconnect();
+        this.draw_requested = false;
     }
 
     /* Exports sit next to the design they came from, rather than all being
@@ -126,7 +152,9 @@ class Design {
 
     determine_size() {
         const viewbox = this.svg.documentElement.viewBox.baseVal;
-        this.dpi = 2540;
+        /* Assigned behind the setter: this is the starting point, not a choice
+           the user just made, so it shouldn't write itself back to storage. */
+        this._dpi = DEFAULT_DPI;
         this.width_pts = viewbox.width;
         this.height_pts = viewbox.height;
         this.preview_width = Math.min(this.width_pts * 0.25, 1024);
@@ -151,6 +179,45 @@ class Design {
             this.layers.push(layer);
             this.layers_by_name[layer_def.name] = layer;
         }
+    }
+
+    /* Puts back the settings the user picked last time. Colors go straight onto
+       the layers rather than through the setters, which would redraw a canvas
+       that hasn't been sized yet; the first draw comes from the resize
+       observer. */
+    restore_preferences() {
+        this._dpi = preferences.get_number("dpi", this._dpi, 1);
+        this._mask_opacity = preferences.get_number("mask_opacity", this._mask_opacity, 0, 1);
+        this._mirror_back = preferences.get_boolean("mirror_back", this._mirror_back);
+
+        const mask_color = preferences.get_choice("mask_color", Object.values(Design.mask_colors), null);
+        if (mask_color) {
+            this.layers_by_name["FMask"].color = mask_color;
+            this.layers_by_name["BMask"].color = mask_color;
+        }
+
+        const silk_color = preferences.get_choice("silk_color", Design.silk_colors, null);
+        if (silk_color) {
+            this.layers_by_name["FSilkS"].color = silk_color;
+            this.layers_by_name["BSilkS"].color = silk_color;
+        }
+
+        const copper_color = preferences.get_choice("copper_color", Object.values(Design.copper_colors), null);
+        if (copper_color) {
+            this.layers_by_name["FCu"].color = copper_color;
+            this.layers_by_name["BCu"].color = copper_color;
+        }
+    }
+
+    get dpi() {
+        return this._dpi;
+    }
+
+    set dpi(val) {
+        /* Number(), because the size fields set this by way of dpmm, which
+           hands over a fixed-precision string. */
+        this._dpi = Number(val);
+        preferences.set("dpi", this._dpi);
     }
 
     get dpmm() {
@@ -192,6 +259,7 @@ class Design {
     set mask_color(val) {
         this.layers_by_name["FMask"].color = val;
         this.layers_by_name["BMask"].color = val;
+        preferences.set("mask_color", val);
         this.draw();
     }
 
@@ -201,6 +269,7 @@ class Design {
 
     set mask_opacity(val) {
         this._mask_opacity = val;
+        preferences.set("mask_opacity", val);
         this.draw();
     }
 
@@ -211,7 +280,48 @@ class Design {
     set silk_color(val) {
         this.layers_by_name["FSilkS"].color = val;
         this.layers_by_name["BSilkS"].color = val;
+        preferences.set("silk_color", val);
         this.draw();
+    }
+
+    get copper_color() {
+        return this.layers_by_name["FCu"].color;
+    }
+
+    set copper_color(val) {
+        this.layers_by_name["FCu"].color = val;
+        this.layers_by_name["BCu"].color = val;
+        preferences.set("copper_color", val);
+        this.draw();
+    }
+
+    get mirror_back() {
+        return this._mirror_back;
+    }
+
+    set mirror_back(val) {
+        this._mirror_back = val;
+        preferences.set("mirror_back", val);
+    }
+
+    /* Where the back layers get flipped, in SVG user units.
+
+       The middle of the board outline rather than the middle of the page, so
+       that mirrored artwork lands back on the board even when the page is
+       bigger than what's being cut out of it. Designs without an Edge.Cuts
+       layer have no board to speak of, so the page it is. */
+    get mirror_axis() {
+        let left = Number.POSITIVE_INFINITY;
+        let right = Number.NEGATIVE_INFINITY;
+
+        for (const path of this.edge_cuts.get_paths()) {
+            for (const point of path) {
+                left = Math.min(left, point[0]);
+                right = Math.max(right, point[0]);
+            }
+        }
+
+        return left <= right ? (left + right) / 2 : this.width_pts / 2;
     }
 
     get preview_layout() {
@@ -251,7 +361,32 @@ class Design {
         }
     }
 
-    async draw() {
+    /* Dragging the opacity slider asks for redraws far faster than one can
+       finish, and draw_frame() awaits between clearing the canvas and filling
+       it again, so overlapping calls would tear. Only one runs at a time; while
+       it does, further requests collapse into a single repeat afterwards, which
+       lands on whatever the newest values are. */
+    draw() {
+        if (this.drawing) {
+            this.draw_requested = true;
+            return this.drawing;
+        }
+
+        this.drawing = (async () => {
+            try {
+                do {
+                    this.draw_requested = false;
+                    await this.draw_frame();
+                } while (this.draw_requested);
+            } finally {
+                this.drawing = null;
+            }
+        })();
+
+        return this.drawing;
+    }
+
+    async draw_frame() {
         const cvs = this.cvs;
 
         cvs.clear();
@@ -277,11 +412,15 @@ class Design {
 
         gingerbread.conversion_start();
 
+        /* Rasters are traced at raster_width px across the page, so the flip
+           has to be expressed in those pixels rather than in user units. */
+        const mirror_x = this.mirror_back ? (this.mirror_axis * this.raster_width) / this.width_pts : null;
+
         for (const layer of this.layers) {
             switch (layer.type) {
                 case "raster": {
                     const bm = await layer.get_raster_bitmap();
-                    const imgdata = await yak.ImageData_from_ImageBitmap(bm);
+                    const imgdata = await yak.ImageData_from_ImageBitmap(bm, layer.is_back ? mirror_x : null);
                     gingerbread.conversion_add_raster_layer(layer.number, this.trace_scale_factor, imgdata);
                     break;
                 }
@@ -325,6 +464,7 @@ class Layer {
         this.type = options.type || "raster";
         this.force_color = options.force_color || false;
         this.is_mask = options.is_mask || false;
+        this.is_back = options.is_back || false;
         this.color = options.color || "red";
 
         this.visible = true;
@@ -469,6 +609,7 @@ document.addEventListener("alpine:init", () => {
     Alpine.data("app", () => ({
         mask_colors: Design.mask_colors,
         silk_colors: Design.silk_colors,
+        copper_colors: Design.copper_colors,
         layers: default_layers(),
         design: false,
         error: null,

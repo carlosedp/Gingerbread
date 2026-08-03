@@ -84,12 +84,22 @@ export async function createImageBitmap(image, width = 1000) {
     return await window.createImageBitmap(imageToProcess);
 }
 
-export async function ImageData_from_ImageBitmap(bitmap) {
+/* Reads an ImageBitmap back as pixels.
+
+   With mirror_x set, the image is flipped left-to-right about that vertical
+   axis (in pixels) on the way. Whatever ends up outside the image afterwards is
+   clipped, which for a board layer means artwork that was already off the
+   board. */
+export async function ImageData_from_ImageBitmap(bitmap, mirror_x = null) {
     const canvas = document.createElement("canvas");
     canvas.width = bitmap.width;
     canvas.height = bitmap.height;
 
     const ctx = canvas.getContext("2d");
+
+    if (mirror_x !== null) {
+        ctx.setTransform(-1, 0, 0, 1, 2 * mirror_x, 0);
+    }
 
     ctx.drawImage(bitmap, 0, 0);
 

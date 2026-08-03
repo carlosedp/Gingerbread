@@ -222,19 +222,20 @@
       </div>
 
       <div class="gb-field-group">
-        <label class="label">Mask opacity</label>
+        <label class="label" for="mask-opacity">Mask opacity</label>
         <div class="field">
-          <div class="control gb-swatches">
-            <!-- The swatch is drawn at the opacity it sets, so it needs a light
-                 backing to read against the dark panel. -->
-            <template x-for="(value, name) in {'20%': 0.2, '50%': 0.5, '90%': 0.9}">
-              <span class="gb-opacity-chip">
-                <button class="color-button" x-on:click="design.mask_opacity = value"
-                  :class="design.mask_opacity == value && 'is-active'"
-                  x-bind:style="{'background-color': design.mask_color, 'opacity': value}" x-bind:title="name"
-                  x-bind:aria-label="'Mask opacity ' + name"></button>
-              </span>
-            </template>
+          <div class="control gb-slider">
+            <!-- The swatch shows the tint the slider is actually producing,
+                 drawn at that opacity, so it needs a light backing to read
+                 against the dark panel. -->
+            <span class="gb-opacity-chip">
+              <span class="gb-opacity-preview"
+                x-bind:style="{'background-color': design.mask_color, 'opacity': design.mask_opacity}"></span>
+            </span>
+            <input id="mask-opacity" class="gb-range" type="range" min="0" max="1" step="0.01"
+              x-model.number="design.mask_opacity">
+            <output class="gb-slider-value" for="mask-opacity"
+              x-text="`${Math.round(design.mask_opacity * 100)}%`"></output>
           </div>
         </div>
       </div>
@@ -249,6 +250,29 @@
                 x-bind:title="color" x-bind:aria-label="color"></button>
             </template>
           </div>
+        </div>
+      </div>
+
+      <div class="gb-field-group">
+        <label class="label">Copper color</label>
+        <div class="field">
+          <div class="control gb-swatches">
+            <template x-for="(color, color_name) in copper_colors">
+              <button class="color-button" x-on:click="design.copper_color = color"
+                :class="design.copper_color == color && 'is-active'" x-bind:style="{'background-color': color}"
+                x-bind:title="color_name" x-bind:aria-label="color_name"></button>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <div class="gb-field-group">
+        <label class="label">Export</label>
+        <div class="field">
+          <label class="checkbox">
+            <input type="checkbox" x-model="design.mirror_back">
+            Mirror back layers, for artwork drawn as seen from the back
+          </label>
         </div>
       </div>
 

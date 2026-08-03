@@ -1077,30 +1077,54 @@ code {
     box-shadow: 0 0 0 2px var(--gb-surface), 0 0 0 4px var(--gb-accent);
 }
 
-/* Mask-opacity swatches: a light disc behind the semi-transparent swatch, so a
-   20% tint is still legible. The selection ring goes on the backing, since the
-   swatch itself is dimmed by its own opacity. */
+/* Section: sliders */
+
+.gb-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.gb-range {
+    flex: 1;
+    min-width: 0;
+    height: 1.25rem;
+    margin: 0;
+    background-color: transparent;
+    accent-color: var(--gb-accent);
+    cursor: pointer;
+}
+
+.gb-range:focus-visible {
+    outline: 2px solid var(--gb-accent-ring);
+    outline-offset: 3px;
+    border-radius: var(--gb-radius-sm);
+}
+
+.gb-slider-value {
+    flex: 0 0 auto;
+    min-width: 2.6rem;
+    text-align: right;
+    font-family: var(--gb-font-mono);
+    font-size: var(--gb-text-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--gb-text-muted);
+}
+
+/* The mask-opacity preview: a light disc behind the semi-transparent swatch, so
+   that a 5% tint is still legible against the dark panel. */
 .gb-opacity-chip {
     display: inline-flex;
+    flex: 0 0 auto;
     border-radius: 50%;
     background-color: #d7dae0;
-    transition: transform var(--gb-transition), box-shadow var(--gb-transition);
 }
 
-.gb-opacity-chip:has(.is-active) {
-    box-shadow: 0 0 0 2px var(--gb-surface), 0 0 0 4px var(--gb-accent);
-}
-
-.gb-opacity-chip .color-button.is-active {
-    box-shadow: none;
-}
-
-.gb-opacity-chip:hover {
-    transform: scale(1.12);
-}
-
-.gb-opacity-chip .color-button:hover {
-    transform: none;
+.gb-opacity-preview {
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--gb-border-strong);
+    border-radius: 50%;
 }
 
 /* Section: layer list */
