@@ -13,6 +13,8 @@
 :root {
   /* surfaces, darkest to lightest */
   --gb-stage: #0a0b0e;
+  /* the board preview's backdrop, lighter than the chrome around it */
+  --gb-workbench: #242932;
   --gb-bg: #0e1013;
   --gb-surface: #14171c;
   --gb-surface-raised: #1a1e25;
@@ -872,11 +874,13 @@ code {
   align-items: center;
   overflow: hidden;
   /* A faint grid gives the board something to sit on and reads as a
-       workbench rather than a blank void. */
-  background-color: var(--gb-stage);
+       workbench rather than a blank void. The stage is lighter than the rest
+       of the chrome on purpose: boards are usually dark (black or dark green
+       soldermask), so a near-black stage leaves the outline invisible. */
+  background-color: var(--gb-workbench);
   background-image:
-    linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px);
+    linear-gradient(rgb(255 255 255 / 6%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 6%) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
@@ -889,7 +893,7 @@ code {
   background: radial-gradient(
     120% 90% at 50% 45%,
     transparent 40%,
-    rgb(0 0 0 / 55%) 100%
+    rgb(0 0 0 / 32%) 100%
   );
 }
 
