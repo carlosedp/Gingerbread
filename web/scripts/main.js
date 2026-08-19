@@ -130,6 +130,7 @@ class Design {
         this.draw_requested = false;
         this.determine_size();
         this.make_layers();
+        this.measure_board();
         this.restore_preferences();
 
         this.resize_observer = new ResizeObserver(() => {
@@ -159,8 +160,12 @@ class Design {
         this._dpi = DEFAULT_DPI;
         this.width_pts = viewbox.width;
         this.height_pts = viewbox.height;
-        this.preview_width = Math.min(this.width_pts * 0.25, 1024);
-        this.raster_width = this.width_pts * 0.5;
+        /* Both are pixel counts, so both are whole numbers: a fractional
+           width gets truncated on its way into the raster canvas, while
+           trace_scale_factor keeps dividing by the un-truncated value, and the
+           traced layers come out scaled a hair short. */
+        this.preview_width = Math.round(Math.min(this.width_pts * 0.25, 1024));
+        this.raster_width = Math.round(this.width_pts * 0.5);
     }
 
     make_layers() {
@@ -181,6 +186,36 @@ class Design {
             this.layers.push(layer);
             this.layers_by_name[layer_def.name] = layer;
         }
+    }
+
+    /* Measures the board outline, in user units.
+
+       The page is only ever an approximation of the board: designs leave
+       margin around the outline, and editors round the viewBox - Affinity
+       Designer rounds it up to whole units, so a document that is exactly
+       128.5 mm at 2540 DPI exports as viewBox="0 0 4001 12851". Edge.Cuts is
+       what actually gets cut out, so that's what the size readout and the
+       mirror axis measure.
+
+       Measured once, since the outline can't change after load while the
+       readout is re-read on every UI update. */
+    measure_board() {
+        let left = Number.POSITIVE_INFINITY;
+        let top = Number.POSITIVE_INFINITY;
+        let right = Number.NEGATIVE_INFINITY;
+        let bottom = Number.NEGATIVE_INFINITY;
+
+        for (const path of this.edge_cuts.get_paths()) {
+            for (const point of path) {
+                left = Math.min(left, point[0]);
+                right = Math.max(right, point[0]);
+                top = Math.min(top, point[1]);
+                bottom = Math.max(bottom, point[1]);
+            }
+        }
+
+        /* Designs without an Edge.Cuts layer have no board to speak of. */
+        this.board_bbox = left <= right ? { left, top, right, bottom } : null;
     }
 
     /* Puts back the settings the user picked last time. Colors go straight onto
@@ -234,20 +269,32 @@ class Design {
         return (this.width_pts * this.dpmm) / this.raster_width;
     }
 
+    /* The size the board comes out at, in user units: the outline if there is
+       one to measure, the page otherwise. See measure_board(). */
+    get board_width_pts() {
+        const width = this.board_bbox ? this.board_bbox.right - this.board_bbox.left : 0;
+        return width > 0 ? width : this.width_pts;
+    }
+
+    get board_height_pts() {
+        const height = this.board_bbox ? this.board_bbox.bottom - this.board_bbox.top : 0;
+        return height > 0 ? height : this.height_pts;
+    }
+
     get width_mm() {
-        return (this.width_pts * this.dpmm).toFixed(2);
+        return (this.board_width_pts * this.dpmm).toFixed(2);
     }
 
     set width_mm(val) {
-        this.dpmm = val / this.width_pts;
+        this.dpmm = val / this.board_width_pts;
     }
 
     get height_mm() {
-        return (this.height_pts * this.dpmm).toFixed(2);
+        return (this.board_height_pts * this.dpmm).toFixed(2);
     }
 
     set height_mm(val) {
-        this.dpmm = val / this.height_pts;
+        this.dpmm = val / this.board_height_pts;
     }
 
     get edge_cuts() {
@@ -310,20 +357,10 @@ class Design {
 
        The middle of the board outline rather than the middle of the page, so
        that mirrored artwork lands back on the board even when the page is
-       bigger than what's being cut out of it. Designs without an Edge.Cuts
-       layer have no board to speak of, so the page it is. */
+       bigger than what's being cut out of it. Designs with no outline to
+       measure fall back to the page. */
     get mirror_axis() {
-        let left = Number.POSITIVE_INFINITY;
-        let right = Number.NEGATIVE_INFINITY;
-
-        for (const path of this.edge_cuts.get_paths()) {
-            for (const point of path) {
-                left = Math.min(left, point[0]);
-                right = Math.max(right, point[0]);
-            }
-        }
-
-        return left <= right ? (left + right) / 2 : this.width_pts / 2;
+        return this.board_bbox ? (this.board_bbox.left + this.board_bbox.right) / 2 : this.width_pts / 2;
     }
 
     get preview_layout() {

@@ -23,19 +23,20 @@ export async function createImageElement(src) {
 }
 
 /* Resizes an image with the given width or height (or both), preserving aspect
-   ratio. */
-function ImageElement_resize(img, width, height) {
-    const aspect_ratio = img.height / img.width;
+   ratio.
 
+   The ratio can be passed in, because an <img> holding an SVG doesn't
+   necessarily know its own shape - see ImageBitmap_from_Blob(). */
+function ImageElement_resize(img, width, height, aspect_ratio = img.height / img.width) {
     if (width && height) {
-        img.width = width;
-        img.height = height;
+        img.width = Math.round(width);
+        img.height = Math.round(height);
     } else if (width) {
-        img.width = width;
-        img.height = Math.floor(img.width * aspect_ratio);
+        img.width = Math.round(width);
+        img.height = Math.round(img.width * aspect_ratio);
     } else if (height) {
-        img.height = height;
-        img.width = Math.floor(img.height / aspect_ratio);
+        img.height = Math.round(height);
+        img.width = Math.round(img.height / aspect_ratio);
     }
 }
 
@@ -44,16 +45,26 @@ async function ImageBitmap_from_Blob(blob, width = 1000, context = null) {
     const blob_url = URL.createObjectURL(blob);
     const image = await createImageElement(blob_url);
 
-    // Workaround for firefox- it doesn't set the image dimensions for SVG
-    // elements until they've been added to the DOM, so use the viewBox
-    // dimensions.
-    if (image.width === 0 && context instanceof XMLDocument) {
-        const viewbox = context.documentElement.viewBox.baseVal;
-        image.width = viewbox.width;
-        image.height = viewbox.height;
+    /* The <img>'s own dimensions can't be trusted for SVGs, so the shape comes
+       from the viewBox whenever there is one. Firefox reports 0x0 until the
+       element is in the DOM, and Chrome, for a root with no usable intrinsic
+       size (width="100%", or no width/height at all - which is what Inkscape,
+       Illustrator and Affinity Designer write), falls back to fitting the
+       default 300x150 box, which rounds the ratio to whole pixels and comes
+       out the wrong shape. That shape decides the height of the raster canvas
+       while trace_scale_factor stays pegged to its width, so getting it wrong
+       scales the traced layers short and letterboxes them into the canvas. */
+    let aspect_ratio = null;
+
+    if (context instanceof XMLDocument) {
+        const viewbox = context.documentElement.viewBox?.baseVal;
+
+        if (viewbox?.width && viewbox?.height) {
+            aspect_ratio = viewbox.height / viewbox.width;
+        }
     }
 
-    ImageElement_resize(image, width);
+    ImageElement_resize(image, width, null, aspect_ratio ?? image.height / image.width);
 
     // Workaround for Chrome: createImageBitmap with resizeWidth/resizeHeight
     // options causes rendering issues in newer Chrome versions. Use canvas-based
