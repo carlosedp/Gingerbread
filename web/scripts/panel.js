@@ -48,6 +48,7 @@ const PANEL_COLOR = "#262b33";
 const HOLE_COLOR = "#ffffff";
 const OUTLINE_COLOR = "#9aa4b3";
 const GUIDE_COLOR = "#f6921e";
+const PCB_COLOR = "#4fc36b";
 
 /* The empty layers included so that the template opens in Inkscape with
    somewhere to draw. Edge.Cuts and Drill are emitted separately since they
@@ -160,6 +161,45 @@ function layer(id, contents, style) {
     return [`  <g ${attrs.join(" ")}>`, ...contents.map((line) => `    ${line}`), "  </g>"];
 }
 
+/* The circuit board that sits behind the panel. It has to fit between the
+   rails, which take up the top and bottom ~10mm of a 3U panel, and be narrower
+   than the panel so that it clears the modules either side of it. */
+export const DEFAULT_PCB_HEIGHT_MM = 110;
+export const DEFAULT_PCB_WIDTH_REDUCTION_MM = 2;
+
+/* The edge of the board, in mm from the panel's top left corner. The board is
+   centered on the panel both ways, so it stays clear of both rails. */
+export function pcb_rect(width_mm, height_mm, options = {}) {
+    const pcb_height = clamp(number(options.pcb_height_mm, DEFAULT_PCB_HEIGHT_MM), 1, height_mm);
+    const reduction = clamp(number(options.pcb_width_reduction_mm, DEFAULT_PCB_WIDTH_REDUCTION_MM), 0, width_mm - 1);
+    const pcb_width = width_mm - reduction;
+
+    return {
+        x: (width_mm - pcb_width) / 2,
+        y: (height_mm - pcb_height) / 2,
+        width: pcb_width,
+        height: pcb_height,
+    };
+}
+
+/* Shared by the SVG and PCB generators so the two always agree on the panel
+   they describe. */
+function panel_geometry(options) {
+    const hp = clamp(Math.round(number(options.hp, 6)), 1, 200);
+    const height_mm = clamp(number(options.height_mm, PANEL_FORMATS["3U"]), 10, 500);
+    const offset_mm = clamp(number(options.offset_mm, DEFAULT_WIDTH_OFFSET_MM), 0, HP_MM);
+    const symmetric = Boolean(options.symmetric);
+    const width_mm = panel_width_mm(hp, { offset_mm, symmetric });
+
+    return {
+        hp: hp,
+        height_mm: height_mm,
+        width_mm: width_mm,
+        holes: mounting_holes(hp, width_mm, height_mm),
+        pcb: pcb_rect(width_mm, height_mm, options),
+    };
+}
+
 /* Builds a Eurorack panel template.
 
    Options:
@@ -169,19 +209,14 @@ function layer(id, contents, style) {
      symmetric     size from the mounting holes so both margins match
      slotted       use oval mounting slots instead of round holes
      center_marks  add crosshairs on the hole centers, as an editing guide
+     pcb_outline   draw where the companion PCB sits (see generate_panel_pcb)
 
    Returns the document source along with the metadata needed to name and
    describe it. */
 export function generate_panel_svg(options = {}) {
-    const hp = clamp(Math.round(number(options.hp, 6)), 1, 200);
-    const height_mm = clamp(number(options.height_mm, PANEL_FORMATS["3U"]), 10, 500);
-    const offset_mm = clamp(number(options.offset_mm, DEFAULT_WIDTH_OFFSET_MM), 0, HP_MM);
-    const symmetric = Boolean(options.symmetric);
+    const { hp, height_mm, width_mm, holes, pcb } = panel_geometry(options);
     const slotted = Boolean(options.slotted);
     const center_marks = Boolean(options.center_marks);
-
-    const width_mm = panel_width_mm(hp, { offset_mm, symmetric });
-    const holes = mounting_holes(hp, width_mm, height_mm);
 
     /* Round holes are real drills, so they belong on the Drill layer where
        Gingerbread turns them into non-plated holes. Slots have no drill
@@ -220,6 +255,16 @@ export function generate_panel_svg(options = {}) {
         );
     }
 
+    if (options.pcb_outline) {
+        layers.push(
+            ...layer(
+                "PCB",
+                [`<path d="${rect_path(pcb.x, pcb.y, pcb.width, pcb.height)}" />`],
+                `fill:none;stroke:${PCB_COLOR};stroke-width:${uu(0.3)};stroke-dasharray:${uu(1)},${uu(0.6)}`,
+            ),
+        );
+    }
+
     const title = `Eurorack panel — ${hp}HP × ${height_mm}mm`;
 
     const lines = [
@@ -241,5 +286,100 @@ export function generate_panel_svg(options = {}) {
         width_mm: Number.parseFloat(width_mm.toFixed(2)),
         height_mm: height_mm,
         hole_count: holes.length,
+    };
+}
+
+/* KiCad's coordinates are mm, rounded the same way the wasm exporter does. */
+function mm(value) {
+    return Number.parseFloat(value.toFixed(3));
+}
+
+function uuid() {
+    return globalThis.crypto.randomUUID();
+}
+
+/* Builds an empty KiCad board sized to sit behind the panel.
+
+   It takes the same options as generate_panel_svg, plus:
+     pcb_height_mm           board height (default 110)
+     pcb_width_reduction_mm  how much narrower than the panel (default 2)
+
+   The board is laid out in the panel's own coordinate frame — the panel's top
+   left corner is the origin, just like the .kicad_pcb Gingerbread exports from
+   the panel artwork — so a jack placed at the same position on both lines up.
+   The panel outline and its mounting holes are drawn on Dwgs.User as a guide
+   for placing parts. */
+export function generate_panel_pcb(options = {}) {
+    const { hp, height_mm, width_mm, holes, pcb } = panel_geometry(options);
+    const slotted = Boolean(options.slotted);
+
+    const rect = (x, y, w, h, layer, width) =>
+        `  (gr_rect (start ${mm(x)} ${mm(y)}) (end ${mm(x + w)} ${mm(y + h)}) ` +
+        `(layer "${layer}") (width ${width}) (fill none) (tstamp "${uuid()}"))`;
+    const line = (x0, y0, x1, y1, layer, width) =>
+        `  (gr_line (start ${mm(x0)} ${mm(y0)}) (end ${mm(x1)} ${mm(y1)}) ` +
+        `(layer "${layer}") (width ${width}) (tstamp "${uuid()}"))`;
+    const circle = (cx, cy, r, layer, width) =>
+        `  (gr_circle (center ${mm(cx)} ${mm(cy)}) (end ${mm(cx + r)} ${mm(cy)}) ` +
+        `(layer "${layer}") (width ${width}) (fill none) (tstamp "${uuid()}"))`;
+    const text = (value, x, y, layer) =>
+        `  (gr_text "${value}" (at ${mm(x)} ${mm(y)}) (layer "${layer}") (tstamp "${uuid()}")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )`;
+
+    /* Holes are drawn at their full travel when slotted, since that's the area
+       the panel screws can occupy. */
+    const hole_guides = holes.flatMap((hole) => {
+        if (!slotted) {
+            return [circle(hole.x, hole.y, HOLE_RADIUS_MM, "Dwgs.User", 0.1)];
+        }
+        const half = SLOT_LENGTH_MM / 2 - HOLE_RADIUS_MM;
+        return [
+            circle(hole.x - half, hole.y, HOLE_RADIUS_MM, "Dwgs.User", 0.1),
+            circle(hole.x + half, hole.y, HOLE_RADIUS_MM, "Dwgs.User", 0.1),
+            line(hole.x - half, hole.y - HOLE_RADIUS_MM, hole.x + half, hole.y - HOLE_RADIUS_MM, "Dwgs.User", 0.1),
+            line(hole.x - half, hole.y + HOLE_RADIUS_MM, hole.x + half, hole.y + HOLE_RADIUS_MM, "Dwgs.User", 0.1),
+        ];
+    });
+
+    const pcb_width = mm(pcb.width);
+    const pcb_height = mm(pcb.height);
+    const title = `Eurorack PCB — ${hp}HP, ${pcb_width} × ${pcb_height}mm`;
+
+    const lines = [
+        "(kicad_pcb (version 20211014) (generator pcbnew)",
+        "  (general (thickness 1.6))",
+        '  (paper "A4")',
+        `  (title_block (title "${title}"))`,
+        "  (layers",
+        '    (0 "F.Cu" signal)',
+        '    (31 "B.Cu" signal)',
+        '    (36 "B.SilkS" user "B.Silkscreen")',
+        '    (37 "F.SilkS" user "F.Silkscreen")',
+        '    (38 "B.Mask" user)',
+        '    (39 "F.Mask" user)',
+        '    (40 "Dwgs.User" user "User.Drawings")',
+        '    (41 "Cmts.User" user "User.Comments")',
+        '    (44 "Edge.Cuts" user)',
+        '    (46 "B.CrtYd" user "B.Courtyard")',
+        '    (47 "F.CrtYd" user "F.Courtyard")',
+        '    (48 "B.Fab" user)',
+        '    (49 "F.Fab" user)',
+        "  )",
+        '  (net 0 "")',
+        rect(pcb.x, pcb.y, pcb.width, pcb.height, "Edge.Cuts", 0.1),
+        rect(0, 0, width_mm, height_mm, "Dwgs.User", 0.1),
+        ...hole_guides,
+        text(`${hp}HP panel outline`, width_mm / 2, height_mm + 2, "Dwgs.User"),
+        ")",
+        "",
+    ];
+
+    return {
+        kicad_pcb: lines.join("\n"),
+        title: title,
+        filename: `eurorack-pcb-${hp}hp-${pcb_width}x${pcb_height}mm.kicad_pcb`,
+        width_mm: pcb_width,
+        height_mm: pcb_height,
     };
 }

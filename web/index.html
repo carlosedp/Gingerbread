@@ -351,6 +351,7 @@
           <p class="gb-panel-summary">
             <span x-text="`${panel_template.width_mm} × ${panel_template.height_mm} mm`"></span>
             <span x-text="`${panel_template.hole_count} mounting holes`"></span>
+            <span class="gb-panel-summary-pcb" x-text="`PCB ${panel_pcb.width_mm} × ${panel_pcb.height_mm} mm`"></span>
           </p>
         </div>
 
@@ -436,6 +437,39 @@
             </div>
           </div>
 
+          <div class="gb-field-group">
+            <label class="label">Companion PCB</label>
+            <div class="field is-grouped">
+              <div class="control">
+                <div class="field has-addons">
+                  <div class="control">
+                    <input class="input" type="number" x-model.number="panel.pcb_height_mm" min="1" max="500"
+                      step="0.1">
+                  </div>
+                  <div class="control">
+                    <a class="button is-static">mm tall</a>
+                  </div>
+                </div>
+              </div>
+              <div class="control">
+                <div class="field has-addons">
+                  <div class="control">
+                    <input class="input" type="number" x-model.number="panel.pcb_width_reduction_mm" min="0"
+                      step="0.1">
+                  </div>
+                  <div class="control">
+                    <a class="button is-static">mm narrower</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="help">
+              An empty <code>.kicad_pcb</code> with the board outline centered behind the panel (dashed green in the
+              preview), so it clears the rails and the neighbouring modules. It shares the panel's coordinates, with
+              the panel and its holes drawn on <code>Dwgs.User</code> for placing jacks and pots.
+            </p>
+          </div>
+
           <p class="help">
             The template carries the panel outline on <code>Edge.Cuts</code> plus empty layers for the copper, mask,
             and silkscreen. Draw into those in Inkscape, then bring the file back here.
@@ -448,6 +482,10 @@
       <button class="button is-primary" x-on:click="download_panel()">
         <span class="material-symbols-outlined">download</span>
         <span x-text="`Download ${panel_template.filename}`"></span>
+      </button>
+      <button class="button is-alt" x-on:click="download_panel_pcb()" x-bind:title="panel_pcb.filename">
+        <span class="material-symbols-outlined">developer_board</span>
+        <span>Download KiCad PCB</span>
       </button>
       <button class="button is-alt" x-on:click="open_panel()">Open in New Gingerbread</button>
     </footer>

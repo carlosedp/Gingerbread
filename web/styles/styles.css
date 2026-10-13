@@ -1469,6 +1469,11 @@ code {
   color: var(--gb-text-dim);
 }
 
+.gb-panel-modal .modal-card-foot {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .gb-panel-modal .modal-card-foot .button .material-symbols-outlined {
   margin-right: 0.25rem;
 }
@@ -1541,6 +1546,10 @@ code {
   max-width: 100%;
   height: auto;
   width: auto;
+}
+
+.gb-panel-summary-pcb {
+  color: #4fc36b;
 }
 
 .gb-panel-summary {

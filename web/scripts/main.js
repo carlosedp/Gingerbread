@@ -4,7 +4,14 @@ import * as yak from "./yak.js";
 import { LibGingerbread } from "./libgingerbread.js";
 import { PreviewCanvas } from "./preview-canvas.js";
 import { DropTarget } from "./dragdrop.js";
-import { DEFAULT_WIDTH_OFFSET_MM, PANEL_FORMATS, generate_panel_svg } from "./panel.js";
+import {
+    DEFAULT_PCB_HEIGHT_MM,
+    DEFAULT_PCB_WIDTH_REDUCTION_MM,
+    DEFAULT_WIDTH_OFFSET_MM,
+    PANEL_FORMATS,
+    generate_panel_pcb,
+    generate_panel_svg,
+} from "./panel.js";
 import { preferences } from "./prefs.js";
 
 /* Drops any match that's nested inside another one.
@@ -758,14 +765,22 @@ document.addEventListener("alpine:init", () => {
             symmetric: false,
             slotted: false,
             center_marks: false,
+            pcb_height_mm: DEFAULT_PCB_HEIGHT_MM,
+            pcb_width_reduction_mm: DEFAULT_PCB_WIDTH_REDUCTION_MM,
         },
         /* Regenerated on every change to the options above, which is what keeps
            the modal's preview and its download in sync. */
         get panel_template() {
             return generate_panel_svg(this.panel);
         },
+        get panel_pcb() {
+            return generate_panel_pcb(this.panel);
+        },
+        /* The preview also shows where the PCB sits, which the downloaded
+           template leaves out. */
         get panel_preview_src() {
-            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(this.panel_template.svg)}`;
+            const svg = generate_panel_svg({ ...this.panel, pcb_outline: true }).svg;
+            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
         },
         panel_file() {
             const template = this.panel_template;
@@ -773,6 +788,10 @@ document.addEventListener("alpine:init", () => {
         },
         download_panel() {
             yak.initiateDownload(this.panel_file());
+        },
+        download_panel_pcb() {
+            const pcb = this.panel_pcb;
+            yak.initiateDownload(new File([pcb.kicad_pcb], pcb.filename, { type: "application/octet-stream" }));
         },
         async open_panel() {
             this.panel_modal = false;

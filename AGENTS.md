@@ -57,6 +57,12 @@ group and on the artwork inside it. `outermost()` drops nested matches before tr
 group and its child are both copied in and every shape is exported twice — harmless on raster layers, but
 it leaves `Edge.Cuts` with duplicate coincident outlines that KiCad won't resolve into cutouts.
 
+Transplanted layers are also un-hidden (`yak.SVGElement_unhide`). A layer can be switched off in the source
+document and still be meant for the board — an SVG shared with another tool, e.g. a VCV Rack panel, often
+keeps `Drill` hidden — and a `display:none` layer renders to an empty bitmap, so without this every raster
+layer hidden in the editor exported blank. Only the matched element is un-hidden; anything hidden *inside*
+a layer stays hidden.
+
 From there each layer takes one of three paths, dispatched by `layer.type` in `Design.export()`:
 
 - **raster** (`F.Cu`, `B.Cu`, `F.SilkS`, `B.SilkS`, `F.Mask`, `B.Mask`) — the layer SVG is rendered to
@@ -79,6 +85,12 @@ and it emits at 100 user units per mm to match Gingerbread's default 2540 DPI. O
 design — outline on `Edge.Cuts`, mounting holes on `Drill`, and empty groups for the other layers — so it goes
 straight back through the pipeline above. Slotted mounting holes are the exception: KiCad has no oval drill, so
 they become cutouts in `Edge.Cuts` instead.
+
+`generate_panel_pcb()` writes the companion circuit board as a `.kicad_pcb` straight from JS, with no wasm involved:
+an `Edge.Cuts` rectangle (110mm tall and 2mm narrower than the panel by default) centered on the panel, plus the
+panel outline and holes on `Dwgs.User`. It uses the panel's own coordinates, the same frame Gingerbread's export of
+the panel uses, so parts placed at matching positions line up. Both generators read the panel through `panel_geometry()`
+so they can't drift apart.
 
 ### Zig ↔ JS boundary
 
